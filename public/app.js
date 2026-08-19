@@ -112,6 +112,15 @@ function makeQuestionCard(q, index) {
   };
   top.append(num, text, del);
 
+  if (q.ko) {
+    const koPreview = document.createElement('div');
+    koPreview.className = 'editor-ko';
+    koPreview.textContent = q.ko;
+    card.append(top, koPreview);
+  } else {
+    card.append(top);
+  }
+
   const opts = document.createElement('div');
   opts.className = 'option-editor';
   ['A', 'B', 'C', 'D'].forEach((letter, oi) => {
@@ -127,11 +136,21 @@ function makeQuestionCard(q, index) {
     inp.className = 'q-option-input';
     inp.value = q.options?.[oi] || '';
     inp.placeholder = `${letter} の選択肢`;
-    item.append(radio, inp);
+
+    const textWrap = document.createElement('div');
+    textWrap.className = 'editor-option-wrap';
+    textWrap.appendChild(inp);
+    if (q.optionsKo?.[oi]) {
+      const ko = document.createElement('small');
+      ko.className = 'editor-ko option-ko';
+      ko.textContent = q.optionsKo[oi];
+      textWrap.appendChild(ko);
+    }
+    item.append(radio, textWrap);
     opts.appendChild(item);
   });
 
-  card.append(top, opts);
+  card.append(opts);
   return card;
 }
 
@@ -143,11 +162,18 @@ function renderQuestionEditor() {
 
 function collectQuestions() {
   const cards = [...document.querySelectorAll('.q-card')];
-  return cards.map(card => {
+  return cards.map((card, index) => {
     const text = card.querySelector('.q-text-input').value.trim();
     const options = [...card.querySelectorAll('.q-option-input')].map(i => i.value.trim());
     const checked = card.querySelector('input[type="radio"]:checked');
-    return { text, options, answer: checked ? Number(checked.value) : -1 };
+    const previous = quizQuestions[index] || {};
+    return {
+      text,
+      ko: previous.ko || '',
+      options,
+      optionsKo: Array.isArray(previous.optionsKo) ? [...previous.optionsKo] : ['', '', '', ''],
+      answer: checked ? Number(checked.value) : -1
+    };
   });
 }
 
@@ -199,26 +225,58 @@ function startTimer(seconds) {
   }, 80);
 }
 
+function setBilingualQuestion(japanese, korean) {
+  const box = $('questionText');
+  box.innerHTML = '';
+  const ja = document.createElement('span');
+  ja.className = 'question-ja';
+  ja.textContent = japanese || '';
+  box.appendChild(ja);
+  if (korean) {
+    const ko = document.createElement('small');
+    ko.className = 'question-ko';
+    ko.textContent = korean;
+    box.appendChild(ko);
+  }
+}
+
 function renderQuestion(data) {
   selectedAnswer = null;
   currentQuestion = data;
   $('questionNum').textContent = data.index + 1;
   $('questionTotal').textContent = data.total;
-  $('questionText').textContent = data.text;
-  $('answerProgress').textContent = `0人回答済み`;
+  setBilingualQuestion(data.text, data.ko);
+  $('answerProgress').textContent = '0人回答済み';
   $('answerMessage').textContent = '';
+  $('answerMessage').classList.remove('reveal-summary');
+
   const box = $('answers');
   box.innerHTML = '';
   data.options.forEach((text, i) => {
     const btn = document.createElement('button');
     btn.className = 'answer-btn';
     btn.dataset.index = i;
+
     const letter = document.createElement('span');
     letter.className = 'answer-letter';
     letter.textContent = String.fromCharCode(65 + i);
-    const label = document.createElement('span');
-    label.textContent = text;
-    btn.append(letter, label);
+
+    const wording = document.createElement('span');
+    wording.className = 'answer-wording';
+    const ja = document.createElement('span');
+    ja.className = 'answer-ja';
+    ja.textContent = text;
+    wording.appendChild(ja);
+
+    const korean = data.optionsKo?.[i];
+    if (korean) {
+      const ko = document.createElement('small');
+      ko.className = 'answer-ko';
+      ko.textContent = korean;
+      wording.appendChild(ko);
+    }
+
+    btn.append(letter, wording);
     btn.onclick = () => submitAnswer(i);
     box.appendChild(btn);
   });
@@ -244,7 +302,21 @@ function revealAnswer(data) {
     if (i === data.correctIndex) b.classList.add('correct');
     if (selectedAnswer === i && i !== data.correctIndex) b.classList.add('wrong');
   });
-  $('answerMessage').textContent = selectedAnswer === data.correctIndex ? '正解！ポイント獲得！' : '正解発表！次の問題を準備中...';
+
+  const wrongNames = (data.wrongPlayers || []).map(p => p.name);
+  const unansweredNames = (data.unansweredPlayers || []).map(p => p.name);
+  const lines = [];
+
+  if (selectedAnswer === data.correctIndex) lines.push('✅ 正解！ポイント獲得！');
+  else if (selectedAnswer === null) lines.push('⏰ 時間切れ！');
+  else lines.push('❌ 不正解！');
+
+  lines.push(wrongNames.length ? `😈 間違えた人：${wrongNames.join('、')}` : '🎯 間違えた人：なし');
+  if (unansweredNames.length) lines.push(`⏰ 未回答：${unansweredNames.join('、')}`);
+
+  const msg = $('answerMessage');
+  msg.textContent = lines.join('\n');
+  msg.classList.add('reveal-summary');
   renderMiniScore(latestPlayers);
 }
 
@@ -318,7 +390,7 @@ $('copyBtn').onclick = async () => {
 
 $('addQuestionBtn').onclick = () => {
   syncEditorToState();
-  quizQuestions.push({ text: '', options: ['', '', '', ''], answer: 0 });
+  quizQuestions.push({ text: '', ko: '', options: ['', '', '', ''], optionsKo: ['', '', '', ''], answer: 0 });
   renderQuestionEditor();
   setTimeout(() => $('questionEditor').scrollTo({ top: $('questionEditor').scrollHeight, behavior: 'smooth' }), 50);
 };
@@ -358,7 +430,7 @@ socket.on('lobby-state', data => {
 
 socket.on('game-started', () => {
   showScreen('game');
-  $('questionText').textContent = 'ゲームスタート！';
+  setBilingualQuestion('ゲームスタート！', '게임 시작!');
   $('answers').innerHTML = '';
   $('answerMessage').textContent = '第1問を準備中...';
   renderMiniScore(latestPlayers);
@@ -369,8 +441,10 @@ socket.on('question', data => {
   renderQuestion(data);
 });
 
-socket.on('answer-locked', ({ correct, gained }) => {
-  $('answerMessage').textContent = correct ? `正解！ +${gained}点 · 正解発表を待っています...` : '回答済み · 正解発表を待っています...';
+socket.on('answer-locked', ({ gained }) => {
+  $('answerMessage').textContent = gained > 0
+    ? `回答済み · 正解発表を待っています...（正解なら最大${gained}点）`
+    : '回答済み · 正解発表を待っています...';
 });
 
 socket.on('answer-progress', ({ answered, total }) => {
