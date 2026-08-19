@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#08111f" />
-  <title>LoL Quiz Party</title>
+  <title>LoL クイズパーティー</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -15,130 +15,4 @@
     <header class="brand">
       <div class="logo">LQ</div>
       <div>
-        <h1>LoL Quiz Party</h1>
-        <p>친구들이랑 실시간으로 붙는 롤 퀴즈</p>
-      </div>
-    </header>
-
-    <section id="home" class="panel hero">
-      <div class="badge">REAL-TIME PARTY QUIZ</div>
-      <h2>방 하나 만들고,<br><span>링크 하나 보내면 끝.</span></h2>
-      <p class="muted">방장이 문제를 만들고 친구들이 동시에 답해. 빠르고 정확할수록 점수가 높아!</p>
-
-      <div class="form-grid">
-        <label>닉네임
-          <input id="nickname" maxlength="18" placeholder="예: 탑차이" autocomplete="nickname" />
-        </label>
-        <label>방 코드
-          <input id="roomCode" maxlength="6" placeholder="예: A7K9P" autocomplete="off" />
-        </label>
-      </div>
-
-      <div class="actions">
-        <button id="createBtn" class="btn primary">새 방 만들기</button>
-        <button id="joinBtn" class="btn secondary">방 들어가기</button>
-      </div>
-      <p id="homeError" class="error"></p>
-    </section>
-
-    <section id="lobby" class="panel hidden">
-      <div class="lobby-top">
-        <div>
-          <div class="badge">ROOM <span id="roomCodeText"></span></div>
-          <h2 id="roomTitleText">롤 퀴즈 파티</h2>
-          <p class="muted"><span id="playerCount">1</span>명 참가 중</p>
-        </div>
-        <div class="share-box">
-          <input id="shareLink" readonly />
-          <button id="copyBtn" class="btn small">링크 복사</button>
-        </div>
-      </div>
-
-      <div class="two-col">
-        <div>
-          <h3>참가자</h3>
-          <div id="players" class="player-list"></div>
-        </div>
-
-        <div id="hostTools" class="host-card hidden">
-          <div class="host-head">
-            <div>
-              <h3>퀴즈 편집</h3>
-              <p class="muted small-text">문제 · 보기 · 정답을 자유롭게 바꿀 수 있어.</p>
-            </div>
-            <button id="addQuestionBtn" class="btn small secondary">+ 문제 추가</button>
-          </div>
-
-          <div class="form-grid compact">
-            <label>퀴즈 제목
-              <input id="quizTitle" maxlength="40" />
-            </label>
-            <label>문제당 제한시간
-              <select id="secondsSelect">
-                <option value="10">10초</option>
-                <option value="15" selected>15초</option>
-                <option value="20">20초</option>
-                <option value="30">30초</option>
-                <option value="45">45초</option>
-              </select>
-            </label>
-          </div>
-
-          <div id="questionEditor" class="question-editor"></div>
-          <div class="sticky-actions">
-            <span id="saveStatus" class="muted small-text"></span>
-            <button id="saveQuizBtn" class="btn secondary">문제 저장</button>
-            <button id="startBtn" class="btn primary">게임 시작</button>
-          </div>
-        </div>
-
-        <div id="guestWaiting" class="waiting-card">
-          <div class="pulse"></div>
-          <h3>방장을 기다리는 중...</h3>
-          <p class="muted">친구들이 다 들어오면 방장이 게임을 시작해.</p>
-        </div>
-      </div>
-    </section>
-
-    <section id="game" class="panel hidden game-panel">
-      <div class="game-top">
-        <div>
-          <div class="badge">QUESTION <span id="questionNum">1</span>/<span id="questionTotal">10</span></div>
-          <div id="answerProgress" class="muted small-text">0명 답변 완료</div>
-        </div>
-        <div class="timer-wrap">
-          <div id="timerText" class="timer-text">15</div>
-          <div class="timer-bar"><div id="timerBar" class="timer-fill"></div></div>
-        </div>
-      </div>
-
-      <h2 id="questionText" class="question-text"></h2>
-      <div id="answers" class="answer-grid"></div>
-      <div id="answerMessage" class="answer-message"></div>
-
-      <div class="score-mini">
-        <h3>실시간 순위</h3>
-        <div id="miniScoreboard" class="mini-scoreboard"></div>
-      </div>
-    </section>
-
-    <section id="result" class="panel hidden result-panel">
-      <div class="badge">FINAL RESULT</div>
-      <h2>게임 끝!</h2>
-      <div id="podium" class="podium"></div>
-      <div id="finalScoreboard" class="final-scoreboard"></div>
-      <button id="restartBtn" class="btn primary hidden">한 판 더 하기</button>
-    </section>
-
-    <section id="closed" class="panel hidden hero">
-      <h2>방이 종료됐어</h2>
-      <p id="closedMessage" class="muted">방장이 나갔거나 방이 닫혔어.</p>
-      <button class="btn primary" onclick="location.href='/'">처음으로</button>
-    </section>
-  </main>
-
-  <div id="toast" class="toast"></div>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/app.js"></script>
-</body>
-</html>
+        <h1>LoL
