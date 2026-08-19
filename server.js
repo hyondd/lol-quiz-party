@@ -17,56 +17,36 @@ const ROOM_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_PLAYERS = 40;
 
 const DEFAULT_QUESTIONS = [
-  {
-    text: '소환사의 협곡에서 한 팀의 기본 인원은 몇 명일까?',
-    options: ['3명', '4명', '5명', '6명'],
-    answer: 2
-  },
-  {
-    text: '일반적인 소환사의 협곡 게임에서 최종적으로 파괴해야 승리하는 건?',
-    options: ['억제기', '넥서스', '내셔 남작', '포탑 1개'],
-    answer: 1
-  },
-  {
-    text: '챔피언의 일반적인 최대 레벨은?',
-    options: ['16', '18', '20', '25'],
-    answer: 1
-  },
-  {
-    text: '정글의 강력한 에픽 몬스터인 Baron Nashor의 한국어 명칭은?',
-    options: ['장로 드래곤', '공허 유충', '내셔 남작', '협곡의 전령'],
-    answer: 2
-  },
-  {
-    text: '라인에서 미니언을 처치해 직접 얻는 대표적인 자원은?',
-    options: ['골드', 'RP', '주황 정수', '신화 정수'],
-    answer: 0
-  },
-  {
-    text: '상대 챔피언을 처치했을 때 일반적으로 얻을 수 있는 것은?',
-    options: ['경험치와 골드', 'RP만', '스킨 조각', '계정 레벨 초기화'],
-    answer: 0
-  },
-  {
-    text: '소환사의 협곡에서 바텀 라인에 가장 흔한 조합은?',
-    options: ['원딜 + 서포터', '탑 + 정글', '미드 + 탑', '정글 + 정글'],
-    answer: 0
-  },
-  {
-    text: '와드의 핵심 용도는?',
-    options: ['시야 확보', '체력 영구 증가', '스킬 쿨타임 삭제', '아이템 무료 구매'],
-    answer: 0
-  },
-  {
-    text: '포탑은 보통 어떤 역할을 할까?',
-    options: ['아군 지역 방어와 진격선 형성', '룬 변경', '챔피언 교체', '핑 삭제'],
-    answer: 0
-  },
-  {
-    text: '‘CS’는 보통 무엇을 세는 데 쓰는 표현일까?',
-    options: ['미니언 등 처치 수', '스킨 개수', '친구 수', '핑 횟수'],
-    answer: 0
-  }
+  { text: 'サモナーズリフトで、1チームの基本人数は何人？', options: ['3人', '4人', '5人', '6人'], answer: 2 },
+  { text: 'サモナーズリフトで、最終的に破壊すると勝利になる建造物は？', options: ['インヒビター', 'ネクサス', 'タワー', 'バロンピット'], answer: 1 },
+  { text: '通常のサモナーズリフトで、チャンピオンの最大レベルは？', options: ['16', '18', '20', '25'], answer: 1 },
+  { text: 'トップ・ミッド・ボットの3本の道を一般に何と呼ぶ？', options: ['レーン', 'ゾーン', 'ルート', 'ゲート'], answer: 0 },
+  { text: '視界を確保するために設置するものは？', options: ['ワード', 'ルーン', 'エモート', 'バフ'], answer: 0 },
+  { text: 'ミニオンなどを倒して得た数を表す「CS」の意味に最も近いものは？', options: ['クリープスコア', 'キャリースコア', 'クリティカルスコア', 'コンボスコア'], answer: 0 },
+  { text: 'ボットレーンで最も一般的な2人組は？', options: ['ADC＋サポート', 'トップ＋ジャングル', 'ミッド＋トップ', 'ジャングル＋ジャングル'], answer: 0 },
+  { text: 'ジャングラーが主に担当する場所は？', options: ['レーン間のジャングル', 'ネクサスの中', 'ショップ前だけ', '川だけ'], answer: 0 },
+  { text: 'タワーの主な役割は？', options: ['防衛と進行の拠点', 'スキン変更', 'ルーン変更', 'チャット強化'], answer: 0 },
+  { text: '相手チャンピオンを倒したとき、一般的に得られるものは？', options: ['ゴールドと経験値', 'RP', 'スキン', 'エターナル'], answer: 0 },
+  { text: 'フラッシュの主な効果は？', options: ['短距離を瞬間移動する', '体力を全回復する', '無敵になる', 'アイテムを無料で買う'], answer: 0 },
+  { text: 'テレポートは主に何のために使われる？', options: ['離れた場所へ素早く移動する', '敵をスタンする', 'ゴールドを増やす', 'レベルを上げる'], answer: 0 },
+  { text: '「CC」は一般的に何を指す？', options: ['行動妨害', 'クリティカル率', 'クールダウン', 'チャンピオンコスト'], answer: 0 },
+  { text: '「ADC」という呼び方で一般に想像される役割は？', options: ['通常攻撃中心の遠距離火力役', 'タンク専用役', 'ジャングル専用役', 'ショップ担当'], answer: 0 },
+  { text: '「AP」は一般に何の略として使われる？', options: ['Ability Power', 'Attack Position', 'Armor Point', 'Action Phase'], answer: 0 },
+  { text: '「AD」は一般に何の略として使われる？', options: ['Attack Damage', 'Ability Defense', 'Active Dash', 'Armor Drain'], answer: 0 },
+  { text: '「Gank」とは一般にどんな行動？', options: ['別レーンなどに奇襲を仕掛ける', 'ショップで買い物する', 'ワードを壊すだけ', '降参投票をする'], answer: 0 },
+  { text: '「Roam」とは一般にどんな動き？', options: ['自分のレーンを離れて他の場所へ影響を出す', 'ずっとベースにいる', '同じ場所でCSだけ取る', 'チャットをミュートする'], answer: 0 },
+  { text: '「Poke」とは一般にどんな攻撃？', options: ['遠距離から少しずつ削る攻撃', '一撃で必ず倒す攻撃', '味方を回復する行為', 'タワーを修理する行為'], answer: 0 },
+  { text: '「Kite」とは一般にどんな操作？', options: ['距離を取りながら攻撃する', 'その場で停止する', '敵に一直線で突っ込む', 'ショップを開き続ける'], answer: 0 },
+  { text: '「Peel」とは主に何をすること？', options: ['味方キャリーを敵から守る', '敵のジャングルを全部取る', 'レーンを放棄する', 'スキンを選ぶ'], answer: 0 },
+  { text: '「Burst Damage」とは？', options: ['短時間に集中して出す大ダメージ', '長時間かけた回復', '移動速度だけを上げる効果', '視界だけを取る行動'], answer: 0 },
+  { text: '「DPS」は何を表す言葉？', options: ['1秒あたりのダメージ', '1分あたりのデス', '1試合のCS', '1回のスキル数'], answer: 0 },
+  { text: '「Ult」と略されることが多いものは？', options: ['アルティメットスキル', '通常攻撃', 'サモナースペル', 'ワード'], answer: 0 },
+  { text: '通常、チャンピオンのアルティメットはどのキーに割り当てられている？', options: ['R', 'Q', 'W', 'E'], answer: 0 },
+  { text: '通常、チャンピオンの基本スキルに使われるキーの組み合わせは？', options: ['Q・W・E', 'A・S・D', 'Z・X・C', 'F1・F2・F3'], answer: 0 },
+  { text: 'サモナースペルの基本キーは？', options: ['DとF', 'QとR', 'WとE', 'AとS'], answer: 0 },
+  { text: '「Recall」を使うとどうなる？', options: ['一定時間後に自陣の泉へ戻る', '敵陣へ瞬間移動する', 'レベルが1上がる', 'その場で無敵になる'], answer: 0 },
+  { text: 'ベースのショップで主に行うことは？', options: ['アイテムを購入する', 'チャンピオンを変更する', '敵の視界を見る', '試合時間を止める'], answer: 0 },
+  { text: 'ゴールドの主な使い道は？', options: ['アイテム購入', 'ランクポイント購入', 'チャンピオンレベル購入', '試合時間延長'], answer: 0 }
 ];
 
 function makeCode() {
@@ -79,7 +59,7 @@ function makeCode() {
 }
 
 function safeName(name) {
-  return String(name || '').trim().slice(0, 18) || '플레이어';
+  return String(name || '').trim().slice(0, 18) || 'プレイヤー';
 }
 
 function publicPlayers(room) {
@@ -111,9 +91,7 @@ function normalizeQuestions(raw) {
       ? q.options.slice(0, 4).map(x => String(x || '').trim().slice(0, 100))
       : [];
     const answer = Number(q?.answer);
-    if (!text || options.length !== 4 || options.some(x => !x) || !Number.isInteger(answer) || answer < 0 || answer > 3) {
-      return null;
-    }
+    if (!text || options.length !== 4 || options.some(x => !x) || !Number.isInteger(answer) || answer < 0 || answer > 3) return null;
     return { text, options, answer };
   }).filter(Boolean);
   return cleaned.length ? cleaned : null;
@@ -138,7 +116,6 @@ function sendQuestion(room) {
     options: q.options,
     seconds: room.secondsPerQuestion
   });
-
   room.answerTimer = setTimeout(() => revealAnswer(room), room.secondsPerQuestion * 1000);
 }
 
@@ -151,15 +128,11 @@ function revealAnswer(room) {
     correctIndex: q.answer,
     players: publicPlayers(room)
   });
-
   room.nextTimer = setTimeout(() => {
     if (!rooms.has(room.code) || room.status !== 'playing') return;
     room.questionIndex += 1;
-    if (room.questionIndex >= room.questions.length) {
-      finishGame(room);
-    } else {
-      sendQuestion(room);
-    }
+    if (room.questionIndex >= room.questions.length) finishGame(room);
+    else sendQuestion(room);
   }, 3500);
 }
 
@@ -175,7 +148,7 @@ io.on('connection', socket => {
     const code = makeCode();
     const room = {
       code,
-      title: String(title || '롤 퀴즈 파티').trim().slice(0, 40) || '롤 퀴즈 파티',
+      title: String(title || 'LoL クイズパーティー').trim().slice(0, 40) || 'LoL クイズパーティー',
       hostId: socket.id,
       status: 'lobby',
       players: new Map(),
@@ -199,9 +172,9 @@ io.on('connection', socket => {
   socket.on('join-room', ({ code, name }) => {
     code = String(code || '').trim().toUpperCase();
     const room = rooms.get(code);
-    if (!room) return socket.emit('join-error', '존재하지 않는 방이야. 방 코드를 다시 확인해줘.');
-    if (room.status !== 'lobby') return socket.emit('join-error', '이미 게임이 시작된 방이야. 다음 판을 기다려줘!');
-    if (room.players.size >= MAX_PLAYERS) return socket.emit('join-error', '이 방은 인원이 가득 찼어.');
+    if (!room) return socket.emit('join-error', 'そのルームは見つかりません。ルームコードを確認してね。');
+    if (room.status !== 'lobby') return socket.emit('join-error', 'このルームはすでにゲーム中です。次のゲームを待ってね！');
+    if (room.players.size >= MAX_PLAYERS) return socket.emit('join-error', 'このルームは満員です。');
 
     room.players.set(socket.id, { id: socket.id, name: safeName(name), score: 0 });
     socket.join(code);
@@ -214,9 +187,9 @@ io.on('connection', socket => {
     const room = rooms.get(String(code || '').toUpperCase());
     if (!room || room.hostId !== socket.id || room.status !== 'lobby') return;
     const normalized = normalizeQuestions(questions);
-    if (!normalized) return socket.emit('quiz-error', '문제 형식을 확인해줘. 모든 문제는 보기 4개와 정답 1개가 필요해.');
+    if (!normalized) return socket.emit('quiz-error', '問題形式を確認してね。各問題には4つの選択肢と1つの正解が必要です。');
     room.questions = normalized;
-    room.title = String(title || room.title).trim().slice(0, 40) || '롤 퀴즈 파티';
+    room.title = String(title || room.title).trim().slice(0, 40) || 'LoL クイズパーティー';
     const s = Number(secondsPerQuestion);
     room.secondsPerQuestion = Number.isFinite(s) ? Math.min(60, Math.max(5, Math.round(s))) : 15;
     socket.emit('quiz-saved');
@@ -257,10 +230,7 @@ io.on('connection', socket => {
     }
     socket.emit('answer-locked', { correct, gained });
     io.to(room.code).emit('answer-progress', { answered: room.answered.size, total: room.players.size });
-
-    if (room.answered.size >= room.players.size) {
-      setTimeout(() => revealAnswer(room), 500);
-    }
+    if (room.answered.size >= room.players.size) setTimeout(() => revealAnswer(room), 500);
   });
 
   socket.on('restart-lobby', ({ code }) => {
@@ -283,7 +253,7 @@ io.on('connection', socket => {
 
     if (room.hostId === socket.id) {
       clearRoomTimers(room);
-      io.to(code).emit('room-closed', '방장이 나가서 방이 종료됐어.');
+      io.to(code).emit('room-closed', 'ホストが退出したため、ルームが終了しました。');
       rooms.delete(code);
       return;
     }
