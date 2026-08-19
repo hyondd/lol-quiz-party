@@ -303,16 +303,31 @@ function revealAnswer(data) {
     if (selectedAnswer === i && i !== data.correctIndex) b.classList.add('wrong');
   });
 
-  const wrongNames = (data.wrongPlayers || []).map(p => p.name);
-  const unansweredNames = (data.unansweredPlayers || []).map(p => p.name);
   const lines = [];
-
   if (selectedAnswer === data.correctIndex) lines.push('✅ 正解！ポイント獲得！');
   else if (selectedAnswer === null) lines.push('⏰ 時間切れ！');
   else lines.push('❌ 不正解！');
 
-  lines.push(wrongNames.length ? `😈 間違えた人：${wrongNames.join('、')}` : '🎯 間違えた人：なし');
+  const wrongPlayers = data.wrongPlayers || [];
+  if (wrongPlayers.length) {
+    lines.push('😈 間違えた人');
+    wrongPlayers.forEach(p => {
+      const idx = Number(p.answerIndex);
+      const letter = Number.isInteger(idx) && idx >= 0 && idx < 4 ? String.fromCharCode(65 + idx) : '?';
+      const pickedText = currentQuestion?.options?.[idx] || '不明';
+      const pickedKo = currentQuestion?.optionsKo?.[idx] || '';
+      lines.push(`・${p.name} → ${letter}「${pickedText}」${pickedKo ? ` / ${pickedKo}` : ''}`);
+    });
+  } else {
+    lines.push('🎯 間違えた人：なし');
+  }
+
+  const unansweredNames = (data.unansweredPlayers || []).map(p => p.name);
   if (unansweredNames.length) lines.push(`⏰ 未回答：${unansweredNames.join('、')}`);
+
+  const correctLetter = String.fromCharCode(65 + data.correctIndex);
+  const correctText = currentQuestion?.options?.[data.correctIndex] || '';
+  lines.push(`💡 正解：${correctLetter}「${correctText}」`);
 
   const msg = $('answerMessage');
   msg.textContent = lines.join('\n');
@@ -441,10 +456,8 @@ socket.on('question', data => {
   renderQuestion(data);
 });
 
-socket.on('answer-locked', ({ gained }) => {
-  $('answerMessage').textContent = gained > 0
-    ? `回答済み · 正解発表を待っています...（正解なら最大${gained}点）`
-    : '回答済み · 正解発表を待っています...';
+socket.on('answer-locked', () => {
+  $('answerMessage').textContent = '回答済み · 正解発表を待っています...';
 });
 
 socket.on('answer-progress', ({ answered, total }) => {
