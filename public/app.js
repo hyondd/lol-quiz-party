@@ -29,7 +29,7 @@ function escRoomInput(v) {
 function getNickname() {
   const n = $('nickname').value.trim();
   if (!n) {
-    $('homeError').textContent = '닉네임부터 입력해줘!';
+    $('homeError').textContent = 'まずニックネームを入力してね！';
     return null;
   }
   localStorage.setItem('lolquiz-name', n);
@@ -59,7 +59,7 @@ function renderPlayers(players) {
     if (p.isHost) {
       const pill = document.createElement('span');
       pill.className = 'host-pill';
-      pill.textContent = 'HOST';
+      pill.textContent = 'ホスト';
       left.appendChild(pill);
     }
 
@@ -100,12 +100,12 @@ function makeQuestionCard(q, index) {
   const text = document.createElement('input');
   text.className = 'q-text-input';
   text.value = q.text || '';
-  text.placeholder = '문제를 입력해줘';
+  text.placeholder = '問題文を入力';
   const del = document.createElement('button');
   del.className = 'icon-btn';
   del.type = 'button';
   del.textContent = '×';
-  del.title = '문제 삭제';
+  del.title = '問題を削除';
   del.onclick = () => {
     quizQuestions.splice(index, 1);
     renderQuestionEditor();
@@ -126,7 +126,7 @@ function makeQuestionCard(q, index) {
     inp.type = 'text';
     inp.className = 'q-option-input';
     inp.value = q.options?.[oi] || '';
-    inp.placeholder = `${letter} 보기`;
+    inp.placeholder = `${letter} の選択肢`;
     item.append(radio, inp);
     opts.appendChild(item);
   });
@@ -143,23 +143,22 @@ function renderQuestionEditor() {
 
 function collectQuestions() {
   const cards = [...document.querySelectorAll('.q-card')];
-  const qs = cards.map(card => {
+  return cards.map(card => {
     const text = card.querySelector('.q-text-input').value.trim();
     const options = [...card.querySelectorAll('.q-option-input')].map(i => i.value.trim());
     const checked = card.querySelector('input[type="radio"]:checked');
     return { text, options, answer: checked ? Number(checked.value) : -1 };
   });
-  return qs;
 }
 
 function saveQuiz(startAfter = false) {
   const questions = collectQuestions();
-  if (!questions.length) return toast('문제를 1개 이상 만들어줘!');
+  if (!questions.length) return toast('問題を1問以上作ってね！');
   if (questions.some(q => !q.text || q.options.some(o => !o) || q.answer < 0)) {
-    return toast('빈 문제/보기가 없는지 확인해줘!');
+    return toast('空欄の問題や選択肢がないか確認してね！');
   }
   quizQuestions = questions;
-  $('saveStatus').textContent = '저장 중...';
+  $('saveStatus').textContent = '保存中...';
   socket.emit('update-quiz', {
     code: currentRoom,
     title: $('quizTitle').value.trim(),
@@ -206,7 +205,7 @@ function renderQuestion(data) {
   $('questionNum').textContent = data.index + 1;
   $('questionTotal').textContent = data.total;
   $('questionText').textContent = data.text;
-  $('answerProgress').textContent = `0명 답변 완료`;
+  $('answerProgress').textContent = `0人回答済み`;
   $('answerMessage').textContent = '';
   const box = $('answers');
   box.innerHTML = '';
@@ -233,7 +232,7 @@ function submitAnswer(i) {
     b.disabled = true;
     if (bi === i) b.classList.add('selected');
   });
-  $('answerMessage').textContent = '답변 잠금! 다른 친구들을 기다리는 중...';
+  $('answerMessage').textContent = '回答を確定！ほかのプレイヤーを待っています...';
   socket.emit('submit-answer', { code: currentRoom, answerIndex: i });
 }
 
@@ -245,7 +244,7 @@ function revealAnswer(data) {
     if (i === data.correctIndex) b.classList.add('correct');
     if (selectedAnswer === i && i !== data.correctIndex) b.classList.add('wrong');
   });
-  $('answerMessage').textContent = selectedAnswer === data.correctIndex ? '정답! 점수 획득!' : '정답 공개! 다음 문제 준비...';
+  $('answerMessage').textContent = selectedAnswer === data.correctIndex ? '正解！ポイント獲得！' : '正解発表！次の問題を準備中...';
   renderMiniScore(latestPlayers);
 }
 
@@ -274,7 +273,7 @@ function renderFinal(players) {
     const row = document.createElement('div');
     row.className = 'score-row';
     const n = document.createElement('span');
-    n.textContent = `${i + 1}위 · ${p.name}`;
+    n.textContent = `${i + 1}位 · ${p.name}`;
     const s = document.createElement('strong');
     s.textContent = `${p.score} pt`;
     row.append(n, s);
@@ -294,14 +293,14 @@ $('createBtn').onclick = () => {
   const name = getNickname();
   if (!name) return;
   $('homeError').textContent = '';
-  socket.emit('create-room', { name, title: '롤 퀴즈 파티' });
+  socket.emit('create-room', { name, title: 'LoL クイズパーティー' });
 };
 
 $('joinBtn').onclick = () => {
   const name = getNickname();
   if (!name) return;
   const code = escRoomInput($('roomCode').value);
-  if (!code) return $('homeError').textContent = '방 코드를 입력해줘!';
+  if (!code) return $('homeError').textContent = 'ルームコードを入力してね！';
   $('homeError').textContent = '';
   socket.emit('join-room', { code, name });
 };
@@ -309,11 +308,11 @@ $('joinBtn').onclick = () => {
 $('copyBtn').onclick = async () => {
   try {
     await navigator.clipboard.writeText($('shareLink').value);
-    toast('링크 복사 완료!');
+    toast('招待リンクをコピーしました！');
   } catch {
     $('shareLink').select();
     document.execCommand('copy');
-    toast('링크 복사 완료!');
+    toast('招待リンクをコピーしました！');
   }
 };
 
@@ -338,13 +337,13 @@ socket.on('room-joined', ({ code, isHost: host }) => setLobby(code, host));
 socket.on('join-error', msg => $('homeError').textContent = msg);
 socket.on('quiz-error', msg => toast(msg));
 socket.on('quiz-saved', () => {
-  $('saveStatus').textContent = '저장됨';
+  $('saveStatus').textContent = '保存しました';
   setTimeout(() => $('saveStatus').textContent = '', 1400);
 });
 
 socket.on('quiz-data', data => {
   quizQuestions = data.questions || [];
-  $('quizTitle').value = data.title || '롤 퀴즈 파티';
+  $('quizTitle').value = data.title || 'LoL クイズパーティー';
   $('secondsSelect').value = String(data.secondsPerQuestion || 15);
   renderQuestionEditor();
 });
@@ -359,9 +358,9 @@ socket.on('lobby-state', data => {
 
 socket.on('game-started', () => {
   showScreen('game');
-  $('questionText').textContent = '게임 시작!';
+  $('questionText').textContent = 'ゲームスタート！';
   $('answers').innerHTML = '';
-  $('answerMessage').textContent = '첫 문제 준비 중...';
+  $('answerMessage').textContent = '第1問を準備中...';
   renderMiniScore(latestPlayers);
 });
 
@@ -371,11 +370,11 @@ socket.on('question', data => {
 });
 
 socket.on('answer-locked', ({ correct, gained }) => {
-  $('answerMessage').textContent = correct ? `정답! +${gained}점 · 정답 공개를 기다리는 중...` : '답변 완료 · 정답 공개를 기다리는 중...';
+  $('answerMessage').textContent = correct ? `正解！ +${gained}点 · 正解発表を待っています...` : '回答済み · 正解発表を待っています...';
 });
 
 socket.on('answer-progress', ({ answered, total }) => {
-  $('answerProgress').textContent = `${answered}/${total}명 답변 완료`;
+  $('answerProgress').textContent = `${answered}/${total}人回答済み`;
 });
 
 socket.on('answer-reveal', revealAnswer);
