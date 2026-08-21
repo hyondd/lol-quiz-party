@@ -15,6 +15,7 @@ const rooms = new Map();
 const ROOM_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_PLAYERS = 40;
 const MAX_QUESTIONS = 100;
+const DEFAULT_TITLE = '千原台高校 クイズパーティー';
 
 function makeCode() {
   for (let tries = 0; tries < 100; tries++) {
@@ -194,11 +195,11 @@ function finishGame(room) {
 }
 
 io.on('connection', socket => {
-  socket.on('create-room', ({ name, title }) => {
+  socket.on('create-room', ({ name }) => {
     const code = makeCode();
     const room = {
       code,
-      title: String(title || 'LoL クイズパーティー').trim().slice(0, 40) || 'LoL クイズパーティー',
+      title: DEFAULT_TITLE,
       hostId: socket.id,
       status: 'lobby',
       players: new Map(),
@@ -244,7 +245,7 @@ io.on('connection', socket => {
     if (!normalized) return socket.emit('quiz-error', '問題形式を確認してね。各問題には4つの選択肢と1つの正解が必要です。');
 
     room.questions = normalized;
-    room.title = String(title || room.title).trim().slice(0, 40) || 'LoL クイズパーティー';
+    room.title = String(title || room.title).trim().slice(0, 40) || DEFAULT_TITLE;
     const s = Number(secondsPerQuestion);
     room.secondsPerQuestion = Number.isFinite(s) ? Math.min(60, Math.max(5, Math.round(s))) : 15;
     socket.emit('quiz-saved');
@@ -338,4 +339,4 @@ io.on('connection', socket => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`LoL Quiz Party running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Chiharadai Quiz Party running on port ${PORT}`));
