@@ -1,42 +1,72 @@
 module.exports = [
-  { art: '🐈\n⌨️💻\n☕', detail: '午前3:17' },
-  { art: '🧑‍🏫 📚\n😴 😴 😴\n🔔', detail: '授業開始5分後' },
-  { art: '⏰ ⏰ ⏰\n🛌😴\n📱 8:59', detail: '登校時間 9:00' },
-  { art: '🐕👔\n📊📈\n🧑‍💼🧑‍💼', detail: '緊急会議' },
-  { art: '🍜\n🥢😐\n💧💧💧', detail: '注文から40分' },
-  { art: '🚪\n🏃💨\n🧑‍🏫「…」', detail: '遅刻した瞬間' },
-  { art: '📱1%\n🔌❌\n😨', detail: '外出先' },
-  { art: '🧃\n🧊🧊🧊\n🥤', detail: '氷9：飲み物1' },
-  { art: '🍱✨\n🥢\n🐦💨', detail: 'いただきますの直前' },
-  { art: '🎤😎\n🎶\n😶😶😶', detail: 'カラオケ1曲目' },
-  { art: '📖📖📖\n🧑‍🎓😵\n📝 明日', detail: 'テスト前日' },
-  { art: '☔\n🙂\n🏠', detail: 'なぜか室内' },
-  { art: '🍕🍕🍕\n👤\n「1人前」', detail: '店員おすすめ' },
-  { art: '🚌💨\n🏃💨\n👋🙂', detail: '目が合った' },
-  { art: '🧑‍🍳🔥\n🍳🔥\n🚨', detail: '料理開始3分' },
-  { art: '📸✨\n🙂🙂🙂\n👁️閉', detail: '奇跡の集合写真' },
-  { art: '🎮\n😡🎧\n「あと1戦」', detail: '深夜2:30' },
-  { art: '🍦\n☀️☀️☀️\n💧', detail: '撮影中' },
-  { art: '🛒\n🍫🍪🥤🍜\n🥬 ×0', detail: '買い物終了' },
-  { art: '💻\n「保存しますか？」\n😱', detail: '3時間作業後' },
-  { art: '🧍\n🚪🚪🚪\n「どれ？」', detail: '初めて来た建物' },
-  { art: '🐢\n🏁\n🐇😴', detail: '残り10m' },
-  { art: '🧑‍🎤✨\n🎟️❌\n🙂', detail: '会場前' },
-  { art: '📦📦📦\n🚪\n🧍', detail: '通販した記憶なし' },
-  { art: '🍰\n🕯️🕯️🕯️\n🔥🔥🔥', detail: '火力が強い誕生日' },
-  { art: '🚲\n🌧️🌧️🌧️\n☀️予報', detail: '降水確率0%' },
-  { art: '🥤\n🧋\n🧃\n💸', detail: '飲み物だけのはずだった' },
-  { art: '🏫\n👟👟👟\n🥿?', detail: '下駄箱前' },
-  { art: '📝\n「自由に書け」\n😶', detail: '一番難しい問題' },
-  { art: '🍚\n🥩 1枚\n🍚🍚🍚', detail: '配分をミスった' },
-  { art: '📱\n既読 23:41\n返信なし', detail: '現在 23:42' },
-  { art: '🧑‍💻\n🔄 更新中 99%\n⏳', detail: '30分経過' },
-  { art: '🎒\n📚📚📚📚\n🍬', detail: '遠足前日' },
-  { art: '🐈\n📦\n「高級ベッド」', detail: 'ベッドは新品' },
-  { art: '🧍‍♂️🧍‍♀️\n🍟 1本\n👀👀', detail: '最後の1本' },
-  { art: '🚽\n📱\n🔋100%', detail: '長期戦の構え' },
-  { art: '🧑‍🏫\n「ここテスト出す」\n😴→😳', detail: '覚醒' },
-  { art: '🪑🪑🪑\n🧍\n🚃', detail: 'なぜか座れない' },
-  { art: '🎁✨\n📦\n🧦', detail: '期待値MAX' },
-  { art: '🧑‍🎓\n📄 100点\n「名前なし」', detail: '返却できません' }
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Funny%20monkey.jpg?width=1000',
+    credit: 'Steven Kreuzer / Public Domain',
+    source: 'https://commons.wikimedia.org/wiki/File:Funny_monkey.jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Funny_Monkey_walk.jpg?width=1000',
+    credit: 'Rajani Gairshail / CC0',
+    source: 'https://commons.wikimedia.org/wiki/File:Funny_Monkey_walk.jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Gracie_Seyranian_the_chunky_cat%2C_she%E2%80%99s_a_funny_cat_but_she%E2%80%99s_angry.jpg?width=1000',
+    credit: 'TyedyeBrody / CC0',
+    source: 'https://commons.wikimedia.org/wiki/File:Gracie_Seyranian_the_chunky_cat,_she%E2%80%99s_a_funny_cat_but_she%E2%80%99s_angry.jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Tigger_Seyranian_the_Muffin_Cat%2C_Kitten_sitting_funny.jpg?width=1000',
+    credit: 'TyedyeBrody / CC0',
+    source: 'https://commons.wikimedia.org/wiki/File:Tigger_Seyranian_the_Muffin_Cat,_Kitten_sitting_funny.jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Funny_Horse_%28166725609%29.jpeg?width=1000',
+    credit: 'Loïc Lété / CC0',
+    source: 'https://commons.wikimedia.org/wiki/File:Funny_Horse_(166725609).jpeg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Funny_goat.jpg?width=1000',
+    credit: 'AdaAndMargaret / CC BY-SA 4.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Funny_goat.jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Funny_dog.jpg?width=1000',
+    credit: 'mikapon / CC BY-SA 2.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Funny_dog.jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Funny_Horse_Faces.jpg?width=1000',
+    credit: 'Jussi You-S-See / CC BY-SA 2.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Funny_Horse_Faces.jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Funny_cat_posing_%2814250377907%29.jpg?width=1000',
+    credit: 'Vladimir Pustovit / CC BY 2.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Funny_cat_posing_(14250377907).jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Funny_cat_posing_%2814436816385%29.jpg?width=1000',
+    credit: 'Vladimir Pustovit / CC BY 2.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Funny_cat_posing_(14436816385).jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Funny_cat_%286225537439%29.jpg?width=1000',
+    credit: 'Moyan Brenn / CC BY 2.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Funny_cat_(6225537439).jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Two_funny_dog.jpg?width=1000',
+    credit: 'ஜீவா சீனிவாசன் / CC BY-SA 4.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Two_funny_dog.jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Funny_dog_%285893408392%29.jpg?width=1000',
+    credit: 'Fedor Leukhin / CC BY-SA 2.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Funny_dog_(5893408392).jpg'
+  },
+  {
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Funny_goat_%285338044248%29.jpg?width=1000',
+    credit: 'Miia Ranta / Wikimedia Commons',
+    source: 'https://commons.wikimedia.org/wiki/File:Funny_goat_(5338044248).jpg'
+  }
 ];
