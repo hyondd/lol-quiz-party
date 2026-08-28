@@ -2,7 +2,6 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
-const WORD_PAIRS = require('./questions');
 
 const app = express();
 const server = http.createServer(app);
@@ -20,7 +19,7 @@ app.get('/health', (_, res) => res.json({ ok: true }));
 const rooms = new Map();
 const pendingDisconnects = new Map();
 const ROOM_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const MAX_PLAYERS = 20;
+const MAX_PLAYERS = 4;
 const DISCONNECT_GRACE_MS = 30000;
 
 function makeCode() {
@@ -46,9 +45,11 @@ function shuffle(arr) {
 }
 
 function publicPlayers(room) {
-  return [...room.players.values()]
-    .map(p => ({ id: p.id, name: p.name, score: p.score, isHost: p.id === room.hostId }))
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ja'));
+  return [...room.players.values()].map(p => ({
+    id: p.id,
+    name: p.name,
+    isHost: p.id === room.hostId
+  }));
 }
 
 function emitLobby(room) {
@@ -56,7 +57,6 @@ function emitLobby(room) {
     code: room.code,
     status: room.status,
     phase: room.phase,
-    rounds: room.rounds,
     discussionSeconds: room.discussionSeconds,
     players: publicPlayers(room)
   });
@@ -65,146 +65,241 @@ function emitLobby(room) {
 function clearTimer(room) {
   if (room.timer) clearTimeout(room.timer);
   room.timer = null;
+  room.phaseEndsAt = 0;
 }
 
-function roundProgress(room) {
-  return { round: room.roundIndex + 1, total: room.playPairs.length };
+function secondsLeft(room, fallback = 1) {
+  if (!room.phaseEndsAt) return fallback;
+  return Math.max(1, Math.ceil((room.phaseEndsAt - Date.now()) / 1000));
+}
+
+function setPhaseTimer(room, seconds, fn) {
+  clearTimer(room);
+  room.phaseEndsAt = Date.now() + seconds * 1000;
+  room.timer = setTimeout(fn, seconds * 1000);
+}
+
+function playerRoleLabel(role) {
+  if (role === 'wolf') return '人狼';
+  if (role === 'seer') return '占い師';
+  return '村人';
+}
+
+function sendRole(room, player) {
+  io.to(player.id).emit('role-info', {
+    role: player.role,
+    roleLabel: playerRoleLabel(player.role),
+    description: player.role === 'wolf'
+      ? '正体を隠して、最後の投票で処刑されなければ勝ち。'
+      : player.role === 'seer'
+        ? 'ゲーム開始時に1人を占い、その人が人狼かどうかを知ることができます。'
+        : '会話と投票から人狼を見つけよう。'
+  });
+}
+
+function seerTargets(room, seerId) {
+  return publicPlayers(room)
+    .filter(p => p.id !== seerId)
+    .map(p => ({ id: p.id, name: p.name }));
+}
+
+function emitPrivateSync(room, socket) {
+  const player = room.players.get(socket.id);
+  if (!player) return;
+  sendRole(room, player);
+
+  if (room.phase === 'seer') {
+    socket.emit('seer-phase', {
+      isSeer: player.role === 'seer',
+      targets: player.role === 'seer' ? seerTargets(room, player.id) : [],
+      seconds: secondsLeft(room, 20)
+    });
+    if (player.role === 'seer' && room.seerResult) {
+      socket.emit('seer-result', room.seerResult);
+    }
+  } else if (room.phase === 'discussion') {
+    socket.emit('discussion-start', {
+      seconds: secondsLeft(room, room.discussionSeconds),
+      players: publicPlayers(room)
+    });
+  } else if (room.phase === 'voting' || room.phase === 'revoting') {
+    const candidates = publicPlayers(room).filter(p => room.voteCandidates.includes(p.id));
+    socket.emit('voting-start', {
+      seconds: secondsLeft(room, 25),
+      players: publicPlayers(room),
+      candidates,
+      revote: room.phase === 'revoting'
+    });
+    socket.emit('vote-progress', { voted: room.votes.size, total: room.players.size });
+  }
+}
+
+function resetGameState(room) {
+  clearTimer(room);
+  room.phase = 'lobby';
+  room.wolfId = null;
+  room.seerId = null;
+  room.seerResult = null;
+  room.votes = new Map();
+  room.voteCandidates = [];
+  room.voteHistory = [];
+  for (const p of room.players.values()) p.role = null;
 }
 
 function abortToLobby(room, message) {
-  clearTimer(room);
+  resetGameState(room);
   room.status = 'lobby';
-  room.phase = 'lobby';
-  room.roundIndex = 0;
-  room.playPairs = [];
-  room.wolfId = null;
-  room.votes.clear();
   io.to(room.code).emit('game-aborted', message);
   emitLobby(room);
 }
 
-function finishGame(room) {
-  clearTimer(room);
-  room.status = 'finished';
-  room.phase = 'finished';
-  io.to(room.code).emit('game-finished', { players: publicPlayers(room) });
-  emitLobby(room);
-}
+function startGame(room) {
+  const roles = shuffle(['wolf', 'seer', 'villager', 'villager']);
+  const players = [...room.players.values()];
 
-function startRound(room) {
-  if (!rooms.has(room.code) || room.status !== 'playing') return;
-  if (room.players.size < 3) return abortToLobby(room, '3人未満になったためゲームを中断しました。');
-
-  clearTimer(room);
-  room.votes = new Map();
-  room.phase = 'discussion';
-
-  const pair = room.playPairs[room.roundIndex];
-  const playerIds = [...room.players.keys()];
-  room.wolfId = playerIds[Math.floor(Math.random() * playerIds.length)];
-
-  const swap = Math.random() < 0.5;
-  room.majorityWord = swap ? pair.b : pair.a;
-  room.minorityWord = swap ? pair.a : pair.b;
-
-  io.to(room.code).emit('round-start', {
-    ...roundProgress(room),
-    seconds: room.discussionSeconds,
-    players: publicPlayers(room)
+  players.forEach((p, i) => {
+    p.role = roles[i];
+    if (p.role === 'wolf') room.wolfId = p.id;
+    if (p.role === 'seer') room.seerId = p.id;
   });
 
-  for (const player of room.players.values()) {
-    io.to(player.id).emit('secret-word', {
-      word: player.id === room.wolfId ? room.minorityWord : room.majorityWord
+  room.status = 'playing';
+  room.phase = 'seer';
+  room.seerResult = null;
+  room.votes = new Map();
+  room.voteCandidates = [];
+  room.voteHistory = [];
+
+  io.to(room.code).emit('game-started', { players: publicPlayers(room) });
+  players.forEach(p => sendRole(room, p));
+
+  for (const p of players) {
+    io.to(p.id).emit('seer-phase', {
+      isSeer: p.role === 'seer',
+      targets: p.role === 'seer' ? seerTargets(room, p.id) : [],
+      seconds: 20
     });
   }
 
-  room.timer = setTimeout(() => beginVoting(room), room.discussionSeconds * 1000);
+  setPhaseTimer(room, 20, () => beginDiscussion(room));
 }
 
-function beginVoting(room) {
-  if (!rooms.has(room.code) || room.status !== 'playing' || room.phase !== 'discussion') return;
-  clearTimer(room);
-  room.phase = 'voting';
-  room.votes = new Map();
+function beginDiscussion(room) {
+  if (!rooms.has(room.code) || room.status !== 'playing') return;
+  if (!['seer', 'starting'].includes(room.phase)) return;
 
+  room.phase = 'discussion';
+  io.to(room.code).emit('discussion-start', {
+    seconds: room.discussionSeconds,
+    players: publicPlayers(room)
+  });
+  setPhaseTimer(room, room.discussionSeconds, () => beginVoting(room, false));
+}
+
+function beginVoting(room, revote = false, candidates = null) {
+  if (!rooms.has(room.code) || room.status !== 'playing') return;
+  clearTimer(room);
+  room.phase = revote ? 'revoting' : 'voting';
+  room.votes = new Map();
+  room.voteCandidates = candidates && candidates.length
+    ? [...candidates]
+    : [...room.players.keys()];
+
+  const candidatePlayers = publicPlayers(room).filter(p => room.voteCandidates.includes(p.id));
   io.to(room.code).emit('voting-start', {
-    ...roundProgress(room),
     seconds: 25,
-    players: publicPlayers(room).map(p => ({ id: p.id, name: p.name }))
+    players: publicPlayers(room),
+    candidates: candidatePlayers,
+    revote
   });
   io.to(room.code).emit('vote-progress', { voted: 0, total: room.players.size });
-
-  room.timer = setTimeout(() => revealRound(room), 25000);
+  setPhaseTimer(room, 25, () => resolveVote(room));
 }
 
-function revealRound(room) {
-  if (!rooms.has(room.code) || room.status !== 'playing' || room.phase !== 'voting') return;
+function resolveVote(room) {
+  if (!rooms.has(room.code) || room.status !== 'playing' || !['voting', 'revoting'].includes(room.phase)) return;
+  const wasRevote = room.phase === 'revoting';
   clearTimer(room);
-  room.phase = 'result';
 
-  const voteCounts = new Map([...room.players.keys()].map(id => [id, 0]));
-  const votersByTarget = new Map([...room.players.keys()].map(id => [id, []]));
+  const counts = new Map(room.voteCandidates.map(id => [id, 0]));
+  const votersByTarget = new Map(room.voteCandidates.map(id => [id, []]));
 
   for (const [voterId, targetId] of room.votes.entries()) {
-    if (!room.players.has(voterId) || !room.players.has(targetId)) continue;
-    voteCounts.set(targetId, (voteCounts.get(targetId) || 0) + 1);
-    votersByTarget.get(targetId)?.push(room.players.get(voterId)?.name || '不明');
+    if (!room.players.has(voterId) || !counts.has(targetId)) continue;
+    counts.set(targetId, counts.get(targetId) + 1);
+    votersByTarget.get(targetId).push(room.players.get(voterId).name);
   }
 
-  const maxVotes = Math.max(0, ...voteCounts.values());
+  const maxVotes = Math.max(0, ...counts.values());
   const topIds = maxVotes > 0
-    ? [...voteCounts.entries()].filter(([, count]) => count === maxVotes).map(([id]) => id)
+    ? [...counts.entries()].filter(([, count]) => count === maxVotes).map(([id]) => id)
     : [];
-  const caught = topIds.length === 1 && topIds[0] === room.wolfId;
 
-  if (caught) {
-    for (const [voterId, targetId] of room.votes.entries()) {
-      if (targetId === room.wolfId && room.players.has(voterId)) {
-        room.players.get(voterId).score += 400;
-      }
-    }
-  } else if (room.players.has(room.wolfId)) {
-    room.players.get(room.wolfId).score += 700;
-  }
-
-  const voteResults = [...room.players.values()]
-    .map(p => ({
-      id: p.id,
-      name: p.name,
-      votes: voteCounts.get(p.id) || 0,
-      voters: votersByTarget.get(p.id) || [],
-      isMinority: p.id === room.wolfId
+  room.voteHistory.push({
+    revote: wasRevote,
+    results: room.voteCandidates.map(id => ({
+      id,
+      name: room.players.get(id)?.name || '退出した人',
+      votes: counts.get(id) || 0,
+      voters: votersByTarget.get(id) || []
     }))
-    .sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name, 'ja'));
-
-  io.to(room.code).emit('round-result', {
-    ...roundProgress(room),
-    caught,
-    minorityId: room.wolfId,
-    minorityName: room.players.get(room.wolfId)?.name || '退出した人',
-    majorityWord: room.majorityWord,
-    minorityWord: room.minorityWord,
-    voteResults,
-    players: publicPlayers(room),
-    message: caught
-      ? '多数派の勝ち！少数派を見破った人は +400pt'
-      : topIds.length > 1
-        ? '同票で決着つかず！少数派が逃げ切って +700pt'
-        : '少数派の勝ち！正体を隠し切って +700pt'
   });
 
-  room.timer = setTimeout(() => {
-    if (!rooms.has(room.code) || room.status !== 'playing' || room.phase !== 'result') return;
-    room.roundIndex += 1;
-    if (room.roundIndex >= room.playPairs.length) finishGame(room);
-    else startRound(room);
-  }, 8000);
+  if (!wasRevote && topIds.length > 1) {
+    room.phase = 'tie';
+    io.to(room.code).emit('vote-tie', {
+      candidates: publicPlayers(room).filter(p => topIds.includes(p.id))
+    });
+    room.timer = setTimeout(() => {
+      if (rooms.has(room.code) && room.status === 'playing' && room.phase === 'tie') {
+        beginVoting(room, true, topIds);
+      }
+    }, 2200);
+    return;
+  }
+
+  const executedId = topIds.length === 1 ? topIds[0] : null;
+  const villageWin = executedId === room.wolfId;
+  finishGame(room, {
+    villageWin,
+    executedId,
+    finalTie: wasRevote && topIds.length !== 1,
+    noVotes: topIds.length === 0
+  });
 }
 
-function checkVotingComplete(room) {
-  if (room.status === 'playing' && room.phase === 'voting' && room.votes.size >= room.players.size) {
-    setTimeout(() => revealRound(room), 350);
+function finishGame(room, outcome) {
+  clearTimer(room);
+  room.status = 'finished';
+  room.phase = 'finished';
+
+  const roles = [...room.players.values()].map(p => ({
+    id: p.id,
+    name: p.name,
+    role: p.role,
+    roleLabel: playerRoleLabel(p.role)
+  }));
+
+  io.to(room.code).emit('game-result', {
+    ...outcome,
+    wolfId: room.wolfId,
+    wolfName: room.players.get(room.wolfId)?.name || '不明',
+    roles,
+    voteHistory: room.voteHistory,
+    message: outcome.villageWin
+      ? '村人陣営の勝利！人狼を見破った！'
+      : outcome.finalTie
+        ? '再投票も同票！人狼が逃げ切った！'
+        : outcome.noVotes
+          ? '投票が成立せず、人狼が逃げ切った！'
+          : '人狼の勝利！最後まで正体を隠し切った！'
+  });
+  emitLobby(room);
+}
+
+function checkVoteComplete(room) {
+  if (room.status === 'playing' && ['voting', 'revoting'].includes(room.phase) && room.votes.size >= room.players.size) {
+    setTimeout(() => resolveVote(room), 350);
   }
 }
 
@@ -219,28 +314,16 @@ function cleanupDisconnectedPlayer(code, playerId) {
     return;
   }
 
-  const wasMinority = room.wolfId === playerId;
   room.players.delete(playerId);
   room.votes.delete(playerId);
   for (const [voterId, targetId] of [...room.votes.entries()]) {
     if (targetId === playerId) room.votes.delete(voterId);
   }
 
-  if (room.status === 'playing' && room.players.size < 3) {
-    abortToLobby(room, '3人未満になったためゲームを中断しました。');
-    return;
-  }
-
-  if (room.status === 'playing' && wasMinority && ['discussion', 'voting'].includes(room.phase)) {
-    clearTimer(room);
-    io.to(room.code).emit('round-cancelled', '少数派のプレイヤーが退出したため、このラウンドをやり直します。');
-    room.phase = 'restarting';
-    setTimeout(() => {
-      if (rooms.has(room.code) && room.status === 'playing') startRound(room);
-    }, 1500);
+  if (room.status === 'playing') {
+    abortToLobby(room, 'プレイヤーが退出したためゲームを中断しました。4人そろったらもう一度スタートしてね。');
   } else {
     emitLobby(room);
-    checkVotingComplete(room);
   }
 }
 
@@ -252,7 +335,10 @@ io.on('connection', socket => {
       pendingDisconnects.delete(socket.id);
     }
     const recoveredRoom = rooms.get(socket.data.roomCode);
-    if (recoveredRoom) emitLobby(recoveredRoom);
+    if (recoveredRoom) {
+      emitLobby(recoveredRoom);
+      if (recoveredRoom.status === 'playing') emitPrivateSync(recoveredRoom, socket);
+    }
   }
 
   socket.on('create-room', ({ name }) => {
@@ -262,19 +348,19 @@ io.on('connection', socket => {
       hostId: socket.id,
       status: 'lobby',
       phase: 'lobby',
-      rounds: 5,
-      discussionSeconds: 60,
+      discussionSeconds: 90,
       players: new Map(),
-      playPairs: [],
-      roundIndex: 0,
       wolfId: null,
-      majorityWord: '',
-      minorityWord: '',
+      seerId: null,
+      seerResult: null,
       votes: new Map(),
-      timer: null
+      voteCandidates: [],
+      voteHistory: [],
+      timer: null,
+      phaseEndsAt: 0
     };
 
-    room.players.set(socket.id, { id: socket.id, name: safeName(name), score: 0 });
+    room.players.set(socket.id, { id: socket.id, name: safeName(name), role: null });
     rooms.set(code, room);
     socket.join(code);
     socket.data.roomCode = code;
@@ -287,74 +373,74 @@ io.on('connection', socket => {
     const room = rooms.get(code);
     if (!room) return socket.emit('join-error', 'そのルームは見つかりません。');
     if (room.status !== 'lobby') return socket.emit('join-error', 'このルームはすでにゲーム中です。');
-    if (room.players.size >= MAX_PLAYERS) return socket.emit('join-error', 'このルームは満員です。');
+    if (room.players.size >= MAX_PLAYERS) return socket.emit('join-error', 'このルームは4人そろっています。');
 
-    room.players.set(socket.id, { id: socket.id, name: safeName(name), score: 0 });
+    room.players.set(socket.id, { id: socket.id, name: safeName(name), role: null });
     socket.join(code);
     socket.data.roomCode = code;
     socket.emit('room-joined', { code, isHost: false });
     emitLobby(room);
   });
 
-  socket.on('update-settings', ({ code, rounds, discussionSeconds }) => {
+  socket.on('update-settings', ({ code, discussionSeconds }) => {
     const room = rooms.get(String(code || '').toUpperCase());
     if (!room || room.hostId !== socket.id || room.status !== 'lobby') return;
-    const r = Number(rounds);
     const s = Number(discussionSeconds);
-    room.rounds = [3, 5, 8, 10].includes(r) ? r : 5;
-    room.discussionSeconds = [30, 45, 60, 90].includes(s) ? s : 60;
+    room.discussionSeconds = [60, 90, 120, 180].includes(s) ? s : 90;
     emitLobby(room);
   });
 
   socket.on('start-game', ({ code }) => {
     const room = rooms.get(String(code || '').toUpperCase());
     if (!room || room.hostId !== socket.id || room.status !== 'lobby') return;
-    if (room.players.size < 3) return socket.emit('input-error', '正体隠匿ゲームは3人以上で遊んでね！');
+    if (room.players.size !== 4) return socket.emit('input-error', '4人ちょうどそろったら開始できます！');
+    startGame(room);
+  });
 
-    room.playPairs = shuffle(WORD_PAIRS).slice(0, Math.min(room.rounds, WORD_PAIRS.length));
-    room.roundIndex = 0;
-    room.status = 'playing';
-    room.phase = 'starting';
-    room.votes.clear();
-    for (const p of room.players.values()) p.score = 0;
+  socket.on('seer-check', ({ code, targetId }) => {
+    const room = rooms.get(String(code || '').toUpperCase());
+    if (!room || room.status !== 'playing' || room.phase !== 'seer') return;
+    const seer = room.players.get(socket.id);
+    if (!seer || seer.role !== 'seer' || room.seerResult) return;
+    targetId = String(targetId || '');
+    if (!room.players.has(targetId) || targetId === socket.id) return;
 
-    emitLobby(room);
-    io.to(room.code).emit('game-started', { total: room.playPairs.length });
-    setTimeout(() => {
-      if (rooms.has(room.code) && room.status === 'playing') startRound(room);
-    }, 900);
+    const target = room.players.get(targetId);
+    room.seerResult = {
+      targetId,
+      targetName: target.name,
+      isWolf: target.role === 'wolf'
+    };
+    socket.emit('seer-result', room.seerResult);
+    setTimeout(() => beginDiscussion(room), 1500);
   });
 
   socket.on('force-vote', ({ code }) => {
     const room = rooms.get(String(code || '').toUpperCase());
     if (!room || room.hostId !== socket.id || room.status !== 'playing' || room.phase !== 'discussion') return;
-    beginVoting(room);
+    beginVoting(room, false);
   });
 
   socket.on('submit-vote', ({ code, targetId }) => {
     const room = rooms.get(String(code || '').toUpperCase());
-    if (!room || room.status !== 'playing' || room.phase !== 'voting' || room.votes.has(socket.id)) return;
+    if (!room || room.status !== 'playing' || !['voting', 'revoting'].includes(room.phase) || room.votes.has(socket.id)) return;
+    if (!room.players.has(socket.id)) return;
+
     targetId = String(targetId || '');
-    if (!room.players.has(socket.id) || !room.players.has(targetId)) return;
+    if (!room.voteCandidates.includes(targetId) || !room.players.has(targetId)) return;
     if (targetId === socket.id) return socket.emit('input-error', '自分には投票できません。');
 
     room.votes.set(socket.id, targetId);
     socket.emit('vote-locked');
     io.to(room.code).emit('vote-progress', { voted: room.votes.size, total: room.players.size });
-    checkVotingComplete(room);
+    checkVoteComplete(room);
   });
 
   socket.on('restart-lobby', ({ code }) => {
     const room = rooms.get(String(code || '').toUpperCase());
     if (!room || room.hostId !== socket.id || room.status !== 'finished') return;
-    clearTimer(room);
     room.status = 'lobby';
-    room.phase = 'lobby';
-    room.playPairs = [];
-    room.roundIndex = 0;
-    room.wolfId = null;
-    room.votes.clear();
-    for (const p of room.players.values()) p.score = 0;
+    resetGameState(room);
     io.to(room.code).emit('back-to-lobby');
     emitLobby(room);
   });
@@ -374,4 +460,4 @@ io.on('connection', socket => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Word Wolf Party running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Four Player Werewolf running on port ${PORT}`));
