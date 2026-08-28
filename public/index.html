@@ -3,31 +3,44 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#08111f" />
-  <title>原神 クイズパーティー</title>
+  <meta name="theme-color" content="#0d1020" />
+  <title>みんなのパーティーゲーム</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <div class="bg-glow bg-one"></div>
-  <div class="bg-glow bg-two"></div>
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
 
   <main class="shell">
     <header class="brand">
-      <div class="logo">GI</div>
+      <div class="logo">P!</div>
       <div>
-        <h1>原神 クイズパーティー</h1>
-        <p>モンドからフォンテーヌまでの知識でリアルタイム対決</p>
+        <h1>みんなのパーティーゲーム</h1>
+        <p>価値観一致 × お題で一言</p>
       </div>
     </header>
 
     <section id="home" class="panel hero">
-      <div class="badge">GENSHIN REAL-TIME QUIZ</div>
-      <h2>テイワットをどれだけ知ってる？<br><span>フォンテーヌまで全部勝負。</span></h2>
-      <p class="muted">七神・魔神任務・ファデュイ・キャラ・世界観・元素反応・フォンテーヌの核心設定まで。ナタ以降は出題なし！</p>
+      <div class="eyebrow">REAL-TIME PARTY GAME</div>
+      <h2>答えに正解はいらない。<br><span>友達のセンスが正解。</span></h2>
+      <p class="muted lead">同じルームに入って、価値観を合わせるか、一番おもしろい一言を決めよう。</p>
 
-      <div class="form-grid">
+      <div class="mode-grid" id="modePicker">
+        <button class="mode-card selected" data-mode="values" type="button">
+          <span class="mode-icon">🧠</span>
+          <strong>価値観一致ゲーム</strong>
+          <small>4択で一番多かった答えを選べば得点</small>
+        </button>
+        <button class="mode-card" data-mode="oneLiner" type="button">
+          <span class="mode-icon">💬</span>
+          <strong>お題で一言</strong>
+          <small>匿名回答 → みんなで一番好きな一言に投票</small>
+        </button>
+      </div>
+
+      <div class="form-grid home-form">
         <label>ニックネーム
-          <input id="nickname" maxlength="18" placeholder="例：旅人" autocomplete="nickname" />
+          <input id="nickname" maxlength="18" placeholder="例：たろう" autocomplete="nickname" />
         </label>
         <label>ルームコード
           <input id="roomCode" maxlength="6" placeholder="例：A7K9P" autocomplete="off" />
@@ -35,8 +48,8 @@
       </div>
 
       <div class="actions">
-        <button id="createBtn" class="btn primary">新しいルームを作る</button>
-        <button id="joinBtn" class="btn secondary">ルームに参加する</button>
+        <button id="createBtn" class="btn primary">このモードでルーム作成</button>
+        <button id="joinBtn" class="btn secondary">ルームに参加</button>
       </div>
       <p id="homeError" class="error"></p>
     </section>
@@ -44,58 +57,48 @@
     <section id="lobby" class="panel hidden">
       <div class="lobby-top">
         <div>
-          <div class="badge">ROOM <span id="roomCodeText"></span></div>
-          <h2 id="roomTitleText">原神 クイズパーティー</h2>
+          <div class="eyebrow">ROOM <span id="roomCodeText"></span></div>
+          <h2 id="roomTitleText">価値観一致ゲーム</h2>
           <p class="muted"><span id="playerCount">1</span>人参加中</p>
         </div>
         <div class="share-box">
           <input id="shareLink" readonly />
-          <button id="copyBtn" class="btn small">招待リンクをコピー</button>
+          <button id="copyBtn" class="btn small secondary">招待リンクをコピー</button>
         </div>
       </div>
 
-      <div class="two-col">
+      <div class="lobby-grid">
         <div>
           <h3>参加者</h3>
           <div id="players" class="player-list"></div>
         </div>
 
         <div id="hostTools" class="host-card hidden">
-          <div class="host-head">
-            <div>
-              <h3>クイズ編集</h3>
-              <p class="muted small-text">問題・4つの選択肢・正解を自由に変更できます。</p>
-            </div>
-            <button id="addQuestionBtn" class="btn small secondary">＋ 問題を追加</button>
-          </div>
-
-          <div class="form-grid compact">
-            <label>クイズタイトル
-              <input id="quizTitle" maxlength="40" />
+          <h3>ゲーム設定</h3>
+          <div class="settings-grid">
+            <label>モード
+              <select id="modeSelect">
+                <option value="values">価値観一致ゲーム</option>
+                <option value="oneLiner">お題で一言</option>
+              </select>
             </label>
-            <label>1問の制限時間
-              <select id="secondsSelect">
-                <option value="10">10秒</option>
-                <option value="15" selected>15秒</option>
-                <option value="20">20秒</option>
-                <option value="30">30秒</option>
-                <option value="45">45秒</option>
+            <label>ラウンド数
+              <select id="roundsSelect">
+                <option value="5">5ラウンド</option>
+                <option value="8" selected>8ラウンド</option>
+                <option value="10">10ラウンド</option>
+                <option value="12">12ラウンド</option>
               </select>
             </label>
           </div>
-
-          <div id="questionEditor" class="question-editor"></div>
-          <div class="sticky-actions">
-            <span id="saveStatus" class="muted small-text"></span>
-            <button id="saveQuizBtn" class="btn secondary">問題を保存</button>
-            <button id="startBtn" class="btn primary">ゲーム開始</button>
-          </div>
+          <div class="mode-explain" id="modeExplain"></div>
+          <button id="startBtn" class="btn primary wide">ゲーム開始</button>
         </div>
 
         <div id="guestWaiting" class="waiting-card">
           <div class="pulse"></div>
           <h3>ホストを待っています...</h3>
-          <p class="muted">みんなが揃ったらホストがゲームを開始します。</p>
+          <p class="muted">みんなが揃ったらゲームスタート！</p>
         </div>
       </div>
     </section>
@@ -103,18 +106,18 @@
     <section id="game" class="panel hidden game-panel">
       <div class="game-top">
         <div>
-          <div class="badge">QUESTION <span id="questionNum">1</span>/<span id="questionTotal">30</span></div>
-          <div id="answerProgress" class="muted small-text">0人回答済み</div>
+          <div class="eyebrow"><span id="stageLabel">ROUND</span> <span id="roundNum">1</span>/<span id="roundTotal">8</span></div>
+          <div id="progressText" class="muted small-text">準備中...</div>
         </div>
         <div class="timer-wrap">
-          <div id="timerText" class="timer-text">15</div>
+          <div id="timerText" class="timer-text">20</div>
           <div class="timer-bar"><div id="timerBar" class="timer-fill"></div></div>
         </div>
       </div>
 
-      <h2 id="questionText" class="question-text"></h2>
-      <div id="answers" class="answer-grid"></div>
-      <div id="answerMessage" class="answer-message"></div>
+      <h2 id="promptText" class="prompt-text">ゲームスタート！</h2>
+      <div id="gameContent" class="game-content"></div>
+      <div id="gameMessage" class="game-message"></div>
 
       <div class="score-mini">
         <h3>リアルタイム順位</h3>
@@ -123,16 +126,16 @@
     </section>
 
     <section id="result" class="panel hidden result-panel">
-      <div class="badge">FINAL RESULT</div>
+      <div class="eyebrow">FINAL RESULT</div>
       <h2>ゲーム終了！</h2>
       <div id="podium" class="podium"></div>
       <div id="finalScoreboard" class="final-scoreboard"></div>
       <button id="restartBtn" class="btn primary hidden">もう一度遊ぶ</button>
     </section>
 
-    <section id="closed" class="panel hidden hero">
+    <section id="closed" class="panel hidden hero compact-hero">
       <h2>ルームが終了しました</h2>
-      <p id="closedMessage" class="muted">ホストが退出したか、ルームが閉じられました。</p>
+      <p id="closedMessage" class="muted">ホストが退出しました。</p>
       <button class="btn primary" onclick="location.href='/'">トップへ戻る</button>
     </section>
   </main>
