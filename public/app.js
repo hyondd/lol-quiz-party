@@ -1,15 +1,13 @@
 const socket = io();
-
 const $ = id => document.getElementById(id);
 const screens = ['home', 'lobby', 'game', 'result', 'closed'];
 
+let selectedMode = 'values';
 let currentRoom = '';
 let isHost = false;
 let latestPlayers = [];
-let quizQuestions = [];
-let currentQuestion = null;
+let currentPrompt = '';
 let timerInterval = null;
-let selectedAnswer = null;
 
 function showScreen(id) {
   screens.forEach(s => $(s).classList.toggle('hidden', s !== id));
@@ -29,10 +27,10 @@ function escRoomInput(v) {
 function getNickname() {
   const n = $('nickname').value.trim();
   if (!n) {
-    $('homeError').textContent = 'まずニックネームを入力してね！';
+    $('homeError').textContent = 'ニックネームを入力してね！';
     return null;
   }
-  localStorage.setItem('lolquiz-name', n);
+  localStorage.setItem('party-name', n);
   return n;
 }
 
@@ -40,34 +38,43 @@ function shareUrl(code) {
   return `${location.origin}${location.pathname}?room=${encodeURIComponent(code)}`;
 }
 
+function modeName(mode) {
+  return mode === 'oneLiner' ? 'お題で一言' : '価値観一致ゲーム';
+}
+
+function modeDescription(mode) {
+  return mode === 'oneLiner'
+    ? '全員が匿名で一言を投稿。回答者の名前を隠したまま投票して、一番票を集めた回答がボーナス！'
+    : '全員が4択から選択。一番多かった選択肢を選んだ人が500ポイント獲得！同率なら両方が多数派。';
+}
+
 function renderPlayers(players) {
   latestPlayers = players || [];
   $('playerCount').textContent = latestPlayers.length;
-  $('players').innerHTML = '';
+  const box = $('players');
+  box.innerHTML = '';
   latestPlayers.forEach((p, i) => {
     const row = document.createElement('div');
     row.className = 'player-row';
-
     const left = document.createElement('div');
     left.className = 'player-name';
     const rank = document.createElement('span');
-    rank.textContent = `${i + 1}.`;
+    rank.className = 'player-index';
+    rank.textContent = `${i + 1}`;
     const name = document.createElement('strong');
     name.textContent = p.name;
     left.append(rank, name);
-
     if (p.isHost) {
       const pill = document.createElement('span');
       pill.className = 'host-pill';
-      pill.textContent = 'ホスト';
+      pill.textContent = 'HOST';
       left.appendChild(pill);
     }
-
     const score = document.createElement('span');
     score.className = 'muted';
     score.textContent = `${p.score} pt`;
     row.append(left, score);
-    $('players').appendChild(row);
+    box.appendChild(row);
   });
   renderMiniScore(latestPlayers);
 }
@@ -78,137 +85,25 @@ function renderMiniScore(players) {
   (players || []).slice(0, 6).forEach((p, i) => {
     const row = document.createElement('div');
     row.className = 'score-row';
-    const name = document.createElement('span');
-    name.textContent = `${i + 1}. ${p.name}`;
-    const score = document.createElement('strong');
-    score.textContent = p.score;
-    row.append(name, score);
+    const n = document.createElement('span');
+    n.textContent = `${i + 1}. ${p.name}`;
+    const s = document.createElement('strong');
+    s.textContent = p.score;
+    row.append(n, s);
     box.appendChild(row);
   });
 }
 
-function makeQuestionCard(q, index) {
-  const card = document.createElement('div');
-  card.className = 'q-card';
-  card.dataset.index = index;
-
-  const top = document.createElement('div');
-  top.className = 'q-top';
-  const num = document.createElement('div');
-  num.className = 'q-number';
-  num.textContent = index + 1;
-  const text = document.createElement('input');
-  text.className = 'q-text-input';
-  text.value = q.text || '';
-  text.placeholder = '問題文を入力';
-  const del = document.createElement('button');
-  del.className = 'icon-btn';
-  del.type = 'button';
-  del.textContent = '×';
-  del.title = '問題を削除';
-  del.onclick = () => {
-    quizQuestions.splice(index, 1);
-    renderQuestionEditor();
-  };
-  top.append(num, text, del);
-
-  if (q.ko) {
-    const koPreview = document.createElement('div');
-    koPreview.className = 'editor-ko';
-    koPreview.textContent = q.ko;
-    card.append(top, koPreview);
-  } else {
-    card.append(top);
-  }
-
-  const opts = document.createElement('div');
-  opts.className = 'option-editor';
-  ['A', 'B', 'C', 'D'].forEach((letter, oi) => {
-    const item = document.createElement('label');
-    item.className = 'option-item';
-    const radio = document.createElement('input');
-    radio.type = 'radio';
-    radio.name = `answer-${index}`;
-    radio.value = oi;
-    radio.checked = Number(q.answer) === oi;
-    const inp = document.createElement('input');
-    inp.type = 'text';
-    inp.className = 'q-option-input';
-    inp.value = q.options?.[oi] || '';
-    inp.placeholder = `${letter} の選択肢`;
-
-    const textWrap = document.createElement('div');
-    textWrap.className = 'editor-option-wrap';
-    textWrap.appendChild(inp);
-    if (q.optionsKo?.[oi]) {
-      const ko = document.createElement('small');
-      ko.className = 'editor-ko option-ko';
-      ko.textContent = q.optionsKo[oi];
-      textWrap.appendChild(ko);
-    }
-    item.append(radio, textWrap);
-    opts.appendChild(item);
-  });
-
-  card.append(opts);
-  return card;
+function setRound(round, total, label) {
+  $('roundNum').textContent = round;
+  $('roundTotal').textContent = total;
+  $('stageLabel').textContent = label;
 }
 
-function renderQuestionEditor() {
-  const editor = $('questionEditor');
-  editor.innerHTML = '';
-  quizQuestions.forEach((q, i) => editor.appendChild(makeQuestionCard(q, i)));
-}
-
-function collectQuestions() {
-  const cards = [...document.querySelectorAll('.q-card')];
-  return cards.map((card, index) => {
-    const text = card.querySelector('.q-text-input').value.trim();
-    const options = [...card.querySelectorAll('.q-option-input')].map(i => i.value.trim());
-    const checked = card.querySelector('input[type="radio"]:checked');
-    const previous = quizQuestions[index] || {};
-    return {
-      text,
-      ko: previous.ko || '',
-      options,
-      optionsKo: Array.isArray(previous.optionsKo) ? [...previous.optionsKo] : ['', '', '', ''],
-      answer: checked ? Number(checked.value) : -1
-    };
-  });
-}
-
-function saveQuiz(startAfter = false) {
-  const questions = collectQuestions();
-  if (!questions.length) return toast('問題を1問以上作ってね！');
-  if (questions.some(q => !q.text || q.options.some(o => !o) || q.answer < 0)) {
-    return toast('空欄の問題や選択肢がないか確認してね！');
-  }
-  quizQuestions = questions;
-  $('saveStatus').textContent = '保存中...';
-  socket.emit('update-quiz', {
-    code: currentRoom,
-    title: $('quizTitle').value.trim(),
-    questions,
-    secondsPerQuestion: Number($('secondsSelect').value)
-  });
-  if (startAfter) {
-    const handler = () => {
-      socket.off('quiz-saved', handler);
-      socket.emit('start-game', { code: currentRoom });
-    };
-    socket.on('quiz-saved', handler);
-  }
-}
-
-function setLobby(code, host) {
-  currentRoom = code;
-  isHost = host;
-  $('roomCodeText').textContent = code;
-  $('shareLink').value = shareUrl(code);
-  $('hostTools').classList.toggle('hidden', !host);
-  $('guestWaiting').classList.toggle('hidden', host);
-  showScreen('lobby');
-  history.replaceState(null, '', `?room=${encodeURIComponent(code)}`);
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  $('timerBar').style.width = '0%';
 }
 
 function startTimer(seconds) {
@@ -225,117 +120,204 @@ function startTimer(seconds) {
   }, 80);
 }
 
-function setBilingualQuestion(japanese, korean) {
-  const box = $('questionText');
-  box.innerHTML = '';
-  const ja = document.createElement('span');
-  ja.className = 'question-ja';
-  ja.textContent = japanese || '';
-  box.appendChild(ja);
-  if (korean) {
-    const ko = document.createElement('small');
-    ko.className = 'question-ko';
-    ko.textContent = korean;
-    box.appendChild(ko);
-  }
+function setPrompt(text) {
+  currentPrompt = text || currentPrompt;
+  $('promptText').textContent = text || '';
 }
 
-function renderQuestion(data) {
-  selectedAnswer = null;
-  currentQuestion = data;
-  $('questionNum').textContent = data.index + 1;
-  $('questionTotal').textContent = data.total;
-  setBilingualQuestion(data.text, data.ko);
-  $('answerProgress').textContent = '0人回答済み';
-  $('answerMessage').textContent = '';
-  $('answerMessage').classList.remove('reveal-summary');
+function clearGameContent() {
+  $('gameContent').innerHTML = '';
+  $('gameMessage').textContent = '';
+}
 
-  const box = $('answers');
-  box.innerHTML = '';
-  data.options.forEach((text, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'answer-btn';
-    btn.dataset.index = i;
+function setLobby(code, host) {
+  currentRoom = code;
+  isHost = host;
+  $('roomCodeText').textContent = code;
+  $('shareLink').value = shareUrl(code);
+  $('hostTools').classList.toggle('hidden', !host);
+  $('guestWaiting').classList.toggle('hidden', host);
+  showScreen('lobby');
+  history.replaceState(null, '', `?room=${encodeURIComponent(code)}`);
+}
 
-    const letter = document.createElement('span');
-    letter.className = 'answer-letter';
-    letter.textContent = String.fromCharCode(65 + i);
-
-    const wording = document.createElement('span');
-    wording.className = 'answer-wording';
-    const ja = document.createElement('span');
-    ja.className = 'answer-ja';
-    ja.textContent = text;
-    wording.appendChild(ja);
-
-    const korean = data.optionsKo?.[i];
-    if (korean) {
-      const ko = document.createElement('small');
-      ko.className = 'answer-ko';
-      ko.textContent = korean;
-      wording.appendChild(ko);
-    }
-
-    btn.append(letter, wording);
-    btn.onclick = () => submitAnswer(i);
-    box.appendChild(btn);
+function updateModePicker() {
+  document.querySelectorAll('.mode-card').forEach(card => {
+    card.classList.toggle('selected', card.dataset.mode === selectedMode);
   });
+}
+
+function renderValueRound(data) {
+  showScreen('game');
+  clearGameContent();
+  setRound(data.round, data.total, '価値観');
+  setPrompt(data.text);
+  $('progressText').textContent = `0/${latestPlayers.length}人 選択済み`;
+
+  const grid = document.createElement('div');
+  grid.className = 'choice-grid';
+  data.options.forEach((option, index) => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-card';
+    const num = document.createElement('span');
+    num.className = 'choice-num';
+    num.textContent = String.fromCharCode(65 + index);
+    const text = document.createElement('strong');
+    text.textContent = option;
+    btn.append(num, text);
+    btn.onclick = () => {
+      document.querySelectorAll('.choice-card').forEach(b => b.disabled = true);
+      btn.classList.add('selected');
+      socket.emit('submit-value', { code: currentRoom, choice: index });
+    };
+    grid.appendChild(btn);
+  });
+  $('gameContent').appendChild(grid);
   startTimer(data.seconds);
 }
 
-function submitAnswer(i) {
-  if (selectedAnswer !== null) return;
-  selectedAnswer = i;
-  [...document.querySelectorAll('.answer-btn')].forEach((b, bi) => {
-    b.disabled = true;
-    if (bi === i) b.classList.add('selected');
+function renderValueResult(data) {
+  stopTimer();
+  setRound(data.round, data.total, '結果発表');
+  setPrompt(data.text);
+  $('progressText').textContent = 'みんなの価値観はこちら';
+  $('gameContent').innerHTML = '';
+
+  const max = Math.max(1, ...data.counts);
+  const box = document.createElement('div');
+  box.className = 'result-choice-list';
+  data.options.forEach((option, i) => {
+    const card = document.createElement('div');
+    card.className = `result-choice ${data.winners.includes(i) ? 'winner' : ''}`;
+    const top = document.createElement('div');
+    top.className = 'result-choice-top';
+    const label = document.createElement('strong');
+    label.textContent = option;
+    const count = document.createElement('span');
+    count.textContent = `${data.counts[i]}票`;
+    top.append(label, count);
+
+    const bar = document.createElement('div');
+    bar.className = 'vote-bar';
+    const fill = document.createElement('div');
+    fill.style.width = `${(data.counts[i] / max) * 100}%`;
+    bar.appendChild(fill);
+
+    const names = document.createElement('small');
+    names.textContent = data.voters[i]?.length ? data.voters[i].join('・') : '選んだ人なし';
+    card.append(top, bar, names);
+    box.appendChild(card);
   });
-  $('answerMessage').textContent = '回答を確定！ほかのプレイヤーを待っています...';
-  socket.emit('submit-answer', { code: currentRoom, answerIndex: i });
+  $('gameContent').appendChild(box);
+  $('gameMessage').textContent = data.winners.length > 1
+    ? '🤝 同率多数派！該当する選択をした人は +500pt'
+    : '🎯 多数派を選んだ人は +500pt';
+  renderPlayers(data.players);
 }
 
-function revealAnswer(data) {
-  clearInterval(timerInterval);
-  latestPlayers = data.players || latestPlayers;
-  [...document.querySelectorAll('.answer-btn')].forEach((b, i) => {
-    b.disabled = true;
-    if (i === data.correctIndex) b.classList.add('correct');
-    if (selectedAnswer === i && i !== data.correctIndex) b.classList.add('wrong');
+function renderOneLinerRound(data) {
+  showScreen('game');
+  clearGameContent();
+  setRound(data.round, data.total, 'お題で一言');
+  setPrompt(data.text);
+  $('progressText').textContent = `0/${latestPlayers.length}人 回答済み`;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'write-box';
+  const textarea = document.createElement('textarea');
+  textarea.maxLength = 80;
+  textarea.placeholder = 'ここに一言。短いほど強いかも。';
+  const bottom = document.createElement('div');
+  bottom.className = 'write-bottom';
+  const counter = document.createElement('span');
+  counter.className = 'muted';
+  counter.textContent = '0/80';
+  const submit = document.createElement('button');
+  submit.className = 'btn primary';
+  submit.textContent = '回答を送信';
+  textarea.oninput = () => counter.textContent = `${textarea.value.length}/80`;
+  submit.onclick = () => {
+    if (!textarea.value.trim()) return toast('一言を入力してね！');
+    socket.emit('submit-one-liner', { code: currentRoom, text: textarea.value });
+    textarea.disabled = true;
+    submit.disabled = true;
+  };
+  bottom.append(counter, submit);
+  wrap.append(textarea, bottom);
+  $('gameContent').appendChild(wrap);
+  startTimer(data.seconds);
+  setTimeout(() => textarea.focus(), 100);
+}
+
+function renderOneLinerVote(data) {
+  stopTimer();
+  setRound(data.round, data.total, '匿名投票');
+  $('progressText').textContent = '一番好きな回答を1つ選んで！';
+  $('gameContent').innerHTML = '';
+  $('gameMessage').textContent = '誰の回答かは結果発表まで秘密。';
+
+  const grid = document.createElement('div');
+  grid.className = 'submission-grid';
+  data.submissions.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = `submission-card ${s.mine ? 'mine' : ''}`;
+    btn.disabled = s.mine;
+    const tag = document.createElement('span');
+    tag.className = 'submission-tag';
+    tag.textContent = s.mine ? 'あなたの回答' : `回答 ${i + 1}`;
+    const text = document.createElement('strong');
+    text.textContent = s.text;
+    btn.append(tag, text);
+    if (!s.mine) {
+      btn.onclick = () => {
+        document.querySelectorAll('.submission-card').forEach(b => b.disabled = true);
+        btn.classList.add('selected');
+        socket.emit('submit-vote', { code: currentRoom, submissionId: s.id });
+      };
+    }
+    grid.appendChild(btn);
   });
+  $('gameContent').appendChild(grid);
+  startTimer(data.seconds);
+}
 
-  const lines = [];
-  if (selectedAnswer === data.correctIndex) lines.push('✅ 正解！ポイント獲得！');
-  else if (selectedAnswer === null) lines.push('⏰ 時間切れ！');
-  else lines.push('❌ 不正解！');
+function renderOneLinerResult(data) {
+  stopTimer();
+  setRound(data.round, data.total, '結果発表');
+  $('progressText').textContent = '回答者オープン！';
+  $('gameContent').innerHTML = '';
 
-  const wrongPlayers = data.wrongPlayers || [];
-  if (wrongPlayers.length) {
-    lines.push('😈 間違えた人');
-    wrongPlayers.forEach(p => {
-      const idx = Number(p.answerIndex);
-      const letter = Number.isInteger(idx) && idx >= 0 && idx < 4 ? String.fromCharCode(65 + idx) : '?';
-      const pickedText = currentQuestion?.options?.[idx] || '不明';
-      const pickedKo = currentQuestion?.optionsKo?.[idx] || '';
-      lines.push(`・${p.name} → ${letter}「${pickedText}」${pickedKo ? ` / ${pickedKo}` : ''}`);
-    });
+  if (!data.entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-card';
+    empty.textContent = data.message || '回答がありませんでした。';
+    $('gameContent').appendChild(empty);
   } else {
-    lines.push('🎯 間違えた人：なし');
+    const list = document.createElement('div');
+    list.className = 'reveal-list';
+    data.entries.forEach((entry, i) => {
+      const card = document.createElement('div');
+      card.className = `reveal-card ${entry.winner ? 'winner' : ''}`;
+      const rank = document.createElement('span');
+      rank.className = 'reveal-rank';
+      rank.textContent = entry.winner ? '👑' : `${i + 1}`;
+      const body = document.createElement('div');
+      const text = document.createElement('strong');
+      text.textContent = entry.text;
+      const meta = document.createElement('small');
+      meta.textContent = `${entry.authorName} · ${entry.votes}票`;
+      body.append(text, meta);
+      card.append(rank, body);
+      list.appendChild(card);
+    });
+    $('gameContent').appendChild(list);
   }
-
-  const unansweredNames = (data.unansweredPlayers || []).map(p => p.name);
-  if (unansweredNames.length) lines.push(`⏰ 未回答：${unansweredNames.join('、')}`);
-
-  const correctLetter = String.fromCharCode(65 + data.correctIndex);
-  const correctText = currentQuestion?.options?.[data.correctIndex] || '';
-  lines.push(`💡 正解：${correctLetter}「${correctText}」`);
-
-  const msg = $('answerMessage');
-  msg.textContent = lines.join('\n');
-  msg.classList.add('reveal-summary');
-  renderMiniScore(latestPlayers);
+  $('gameMessage').textContent = '1票 = 200pt、最多得票の回答にはさらに +500pt';
+  renderPlayers(data.players);
 }
 
 function renderFinal(players) {
+  stopTimer();
   const sorted = [...(players || [])].sort((a, b) => b.score - a.score);
   $('podium').innerHTML = '';
   const top3 = sorted.slice(0, 3);
@@ -344,14 +326,14 @@ function renderFinal(players) {
     const actualRank = sorted.findIndex(x => x.id === p.id) + 1;
     const card = document.createElement('div');
     card.className = `podium-card ${actualRank === 1 ? 'first' : ''}`;
-    const rank = document.createElement('div');
-    rank.className = 'rank';
-    rank.textContent = actualRank === 1 ? '🥇' : actualRank === 2 ? '🥈' : '🥉';
+    const medal = document.createElement('div');
+    medal.className = 'rank';
+    medal.textContent = actualRank === 1 ? '🥇' : actualRank === 2 ? '🥈' : '🥉';
     const name = document.createElement('strong');
     name.textContent = p.name;
     const score = document.createElement('span');
     score.textContent = `${p.score} pt`;
-    card.append(rank, name, score);
+    card.append(medal, name, score);
     $('podium').appendChild(card);
   });
 
@@ -359,28 +341,35 @@ function renderFinal(players) {
   sorted.forEach((p, i) => {
     const row = document.createElement('div');
     row.className = 'score-row';
-    const n = document.createElement('span');
-    n.textContent = `${i + 1}位 · ${p.name}`;
-    const s = document.createElement('strong');
-    s.textContent = `${p.score} pt`;
-    row.append(n, s);
+    const name = document.createElement('span');
+    name.textContent = `${i + 1}位 · ${p.name}`;
+    const score = document.createElement('strong');
+    score.textContent = `${p.score} pt`;
+    row.append(name, score);
     $('finalScoreboard').appendChild(row);
   });
   $('restartBtn').classList.toggle('hidden', !isHost);
   showScreen('result');
 }
 
+// Home
+$('nickname').value = localStorage.getItem('party-name') || localStorage.getItem('lolquiz-name') || '';
 $('roomCode').addEventListener('input', e => e.target.value = escRoomInput(e.target.value));
-$('nickname').value = localStorage.getItem('lolquiz-name') || '';
-
 const urlRoom = new URLSearchParams(location.search).get('room');
 if (urlRoom) $('roomCode').value = escRoomInput(urlRoom);
+
+document.querySelectorAll('.mode-card').forEach(card => {
+  card.onclick = () => {
+    selectedMode = card.dataset.mode;
+    updateModePicker();
+  };
+});
 
 $('createBtn').onclick = () => {
   const name = getNickname();
   if (!name) return;
   $('homeError').textContent = '';
-  socket.emit('create-room', { name, title: 'LoL クイズパーティー' });
+  socket.emit('create-room', { name, mode: selectedMode });
 };
 
 $('joinBtn').onclick = () => {
@@ -403,73 +392,70 @@ $('copyBtn').onclick = async () => {
   }
 };
 
-$('addQuestionBtn').onclick = () => {
-  syncEditorToState();
-  quizQuestions.push({ text: '', ko: '', options: ['', '', '', ''], optionsKo: ['', '', '', ''], answer: 0 });
-  renderQuestionEditor();
-  setTimeout(() => $('questionEditor').scrollTo({ top: $('questionEditor').scrollHeight, behavior: 'smooth' }), 50);
-};
-
-function syncEditorToState() {
-  const cards = [...document.querySelectorAll('.q-card')];
-  if (cards.length) quizQuestions = collectQuestions();
+function emitSettings() {
+  if (!isHost || !currentRoom) return;
+  socket.emit('update-settings', {
+    code: currentRoom,
+    mode: $('modeSelect').value,
+    rounds: Number($('roundsSelect').value)
+  });
 }
 
-$('saveQuizBtn').onclick = () => saveQuiz(false);
-$('startBtn').onclick = () => saveQuiz(true);
+$('modeSelect').onchange = emitSettings;
+$('roundsSelect').onchange = emitSettings;
+$('startBtn').onclick = () => socket.emit('start-game', { code: currentRoom });
 $('restartBtn').onclick = () => socket.emit('restart-lobby', { code: currentRoom });
 
+// Socket events
 socket.on('room-created', ({ code, isHost: host }) => setLobby(code, host));
 socket.on('room-joined', ({ code, isHost: host }) => setLobby(code, host));
 socket.on('join-error', msg => $('homeError').textContent = msg);
-socket.on('quiz-error', msg => toast(msg));
-socket.on('quiz-saved', () => {
-  $('saveStatus').textContent = '保存しました';
-  setTimeout(() => $('saveStatus').textContent = '', 1400);
-});
-
-socket.on('quiz-data', data => {
-  quizQuestions = data.questions || [];
-  $('quizTitle').value = data.title || 'LoL クイズパーティー';
-  $('secondsSelect').value = String(data.secondsPerQuestion || 15);
-  renderQuestionEditor();
-});
+socket.on('input-error', msg => toast(msg));
+socket.on('submission-locked', msg => $('gameMessage').textContent = `${msg} みんなを待っています...`);
+socket.on('vote-locked', () => $('gameMessage').textContent = '投票しました！結果を待っています...');
 
 socket.on('lobby-state', data => {
   currentRoom = data.code;
   $('roomCodeText').textContent = data.code;
-  $('roomTitleText').textContent = data.title;
+  $('roomTitleText').textContent = data.modeTitle || modeName(data.mode);
   $('shareLink').value = shareUrl(data.code);
   renderPlayers(data.players);
+  if (isHost) {
+    $('modeSelect').value = data.mode;
+    $('roundsSelect').value = String(data.rounds);
+    $('modeExplain').textContent = modeDescription(data.mode);
+  }
 });
 
-socket.on('game-started', () => {
+socket.on('game-started', ({ modeTitle }) => {
   showScreen('game');
-  setBilingualQuestion('ゲームスタート！', '게임 시작!');
-  $('answers').innerHTML = '';
-  $('answerMessage').textContent = '第1問を準備中...';
+  clearGameContent();
+  $('stageLabel').textContent = 'START';
+  $('roundNum').textContent = '—';
+  $('roundTotal').textContent = '—';
+  $('progressText').textContent = modeTitle;
+  setPrompt('ゲームスタート！');
   renderMiniScore(latestPlayers);
 });
 
-socket.on('question', data => {
-  showScreen('game');
-  renderQuestion(data);
+socket.on('value-round', renderValueRound);
+socket.on('value-result', renderValueResult);
+socket.on('one-liner-round', renderOneLinerRound);
+socket.on('one-liner-vote', renderOneLinerVote);
+socket.on('one-liner-result', renderOneLinerResult);
+
+socket.on('answer-progress', ({ done, total }) => {
+  $('progressText').textContent = `${done}/${total}人 完了`;
 });
 
-socket.on('answer-locked', () => {
-  $('answerMessage').textContent = '回答済み · 正解発表を待っています...';
+socket.on('vote-progress', ({ voted, total }) => {
+  if (total > 0) $('progressText').textContent = `${voted}/${total}人 投票済み`;
 });
 
-socket.on('answer-progress', ({ answered, total }) => {
-  $('answerProgress').textContent = `${answered}/${total}人回答済み`;
-});
-
-socket.on('answer-reveal', revealAnswer);
 socket.on('game-finished', ({ players }) => renderFinal(players));
 socket.on('back-to-lobby', () => showScreen('lobby'));
-
 socket.on('room-closed', msg => {
-  clearInterval(timerInterval);
+  stopTimer();
   $('closedMessage').textContent = msg;
   showScreen('closed');
 });
