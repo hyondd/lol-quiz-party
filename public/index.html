@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0d1020" />
-  <title>みんなのパーティーゲーム</title>
+  <meta name="theme-color" content="#0a0d18" />
+  <title>ワードウルフ パーティー</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -13,34 +13,27 @@
 
   <main class="shell">
     <header class="brand">
-      <div class="logo">P!</div>
+      <div class="logo">🐺</div>
       <div>
-        <h1>みんなのパーティーゲーム</h1>
-        <p>価値観一致 × お題で一言</p>
+        <h1>ワードウルフ パーティー</h1>
+        <p>1人だけ違うお題。正体を隠して逃げ切れ。</p>
       </div>
     </header>
 
     <section id="home" class="panel hero">
-      <div class="eyebrow">REAL-TIME PARTY GAME</div>
-      <h2>答えに正解はいらない。<br><span>友達のセンスが正解。</span></h2>
-      <p class="muted lead">同じルームに入って、価値観を合わせるか、一番おもしろい一言を決めよう。</p>
+      <div class="eyebrow">SECRET IDENTITY GAME</div>
+      <h2>同じようで、<br><span>1人だけ違う。</span></h2>
+      <p class="muted lead">全員に似たお題が配られます。ただし1人だけ別のお題。会話から少数派を見つけよう。</p>
 
-      <div class="mode-grid" id="modePicker">
-        <button class="mode-card selected" data-mode="values" type="button">
-          <span class="mode-icon">🧠</span>
-          <strong>価値観一致ゲーム</strong>
-          <small>4択で一番多かった答えを選べば得点</small>
-        </button>
-        <button class="mode-card" data-mode="oneLiner" type="button">
-          <span class="mode-icon">💬</span>
-          <strong>お題で一言</strong>
-          <small>匿名回答 → みんなで一番好きな一言に投票</small>
-        </button>
+      <div class="rule-strip">
+        <div><strong>①</strong><span>自分のお題を見る</span></div>
+        <div><strong>②</strong><span>みんなで話す</span></div>
+        <div><strong>③</strong><span>怪しい人に投票</span></div>
       </div>
 
-      <div class="form-grid home-form">
+      <div class="form-grid">
         <label>ニックネーム
-          <input id="nickname" maxlength="18" placeholder="例：たろう" autocomplete="nickname" />
+          <input id="nickname" maxlength="18" placeholder="例：ひおん" autocomplete="nickname" />
         </label>
         <label>ルームコード
           <input id="roomCode" maxlength="6" placeholder="例：A7K9P" autocomplete="off" />
@@ -48,8 +41,8 @@
       </div>
 
       <div class="actions">
-        <button id="createBtn" class="btn primary">このモードでルーム作成</button>
-        <button id="joinBtn" class="btn secondary">ルームに参加</button>
+        <button id="createBtn" class="btn primary">新しいルームを作る</button>
+        <button id="joinBtn" class="btn secondary">ルームに参加する</button>
       </div>
       <p id="homeError" class="error"></p>
     </section>
@@ -58,12 +51,12 @@
       <div class="lobby-top">
         <div>
           <div class="eyebrow">ROOM <span id="roomCodeText"></span></div>
-          <h2 id="roomTitleText">価値観一致ゲーム</h2>
-          <p class="muted"><span id="playerCount">1</span>人参加中</p>
+          <h2>正体隠匿ミニゲーム</h2>
+          <p class="muted"><span id="playerCount">1</span>人参加中 · 3人以上でスタート</p>
         </div>
         <div class="share-box">
           <input id="shareLink" readonly />
-          <button id="copyBtn" class="btn small secondary">招待リンクをコピー</button>
+          <button id="copyBtn" class="btn small">招待リンクをコピー</button>
         </div>
       </div>
 
@@ -75,30 +68,35 @@
 
         <div id="hostTools" class="host-card hidden">
           <h3>ゲーム設定</h3>
-          <div class="settings-grid">
-            <label>モード
-              <select id="modeSelect">
-                <option value="values">価値観一致ゲーム</option>
-                <option value="oneLiner">お題で一言</option>
-              </select>
-            </label>
+          <div class="setting-grid">
             <label>ラウンド数
               <select id="roundsSelect">
-                <option value="5">5ラウンド</option>
-                <option value="8" selected>8ラウンド</option>
+                <option value="3">3ラウンド</option>
+                <option value="5" selected>5ラウンド</option>
+                <option value="8">8ラウンド</option>
                 <option value="10">10ラウンド</option>
-                <option value="12">12ラウンド</option>
+              </select>
+            </label>
+            <label>話し合い時間
+              <select id="discussionSelect">
+                <option value="30">30秒</option>
+                <option value="45">45秒</option>
+                <option value="60" selected>60秒</option>
+                <option value="90">90秒</option>
               </select>
             </label>
           </div>
-          <div class="mode-explain" id="modeExplain"></div>
+          <div class="howto-card">
+            <strong>ルール</strong>
+            <p>多数派は少数派を見つける。少数派は自分だけ違うとバレないように会話する。少数派本人にも、自分が少数派かどうかは表示されません。</p>
+          </div>
           <button id="startBtn" class="btn primary wide">ゲーム開始</button>
         </div>
 
         <div id="guestWaiting" class="waiting-card">
           <div class="pulse"></div>
           <h3>ホストを待っています...</h3>
-          <p class="muted">みんなが揃ったらゲームスタート！</p>
+          <p class="muted">3人以上集まったらゲーム開始！</p>
         </div>
       </div>
     </section>
@@ -106,21 +104,20 @@
     <section id="game" class="panel hidden game-panel">
       <div class="game-top">
         <div>
-          <div class="eyebrow"><span id="stageLabel">ROUND</span> <span id="roundNum">1</span>/<span id="roundTotal">8</span></div>
+          <div class="eyebrow"><span id="stageLabel">ROUND</span> · <span id="roundNum">1</span>/<span id="roundTotal">5</span></div>
           <div id="progressText" class="muted small-text">準備中...</div>
         </div>
         <div class="timer-wrap">
-          <div id="timerText" class="timer-text">20</div>
+          <div id="timerText" class="timer-text">60</div>
           <div class="timer-bar"><div id="timerBar" class="timer-fill"></div></div>
         </div>
       </div>
 
-      <h2 id="promptText" class="prompt-text">ゲームスタート！</h2>
-      <div id="gameContent" class="game-content"></div>
+      <div id="gameContent"></div>
       <div id="gameMessage" class="game-message"></div>
 
       <div class="score-mini">
-        <h3>リアルタイム順位</h3>
+        <h3>スコア</h3>
         <div id="miniScoreboard" class="mini-scoreboard"></div>
       </div>
     </section>
@@ -133,9 +130,9 @@
       <button id="restartBtn" class="btn primary hidden">もう一度遊ぶ</button>
     </section>
 
-    <section id="closed" class="panel hidden hero compact-hero">
+    <section id="closed" class="panel hidden hero">
       <h2>ルームが終了しました</h2>
-      <p id="closedMessage" class="muted">ホストが退出しました。</p>
+      <p id="closedMessage" class="muted">ホストが退出したため、ルームが終了しました。</p>
       <button class="btn primary" onclick="location.href='/'">トップへ戻る</button>
     </section>
   </main>
