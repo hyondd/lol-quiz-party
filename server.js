@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
-const DEFAULT_QUESTIONS = require('./questions');
+const { valuePrompts, oneLinerPrompts } = require('./questions');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,8 +14,6 @@ app.get('/health', (_, res) => res.json({ ok: true }));
 const rooms = new Map();
 const ROOM_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_PLAYERS = 40;
-const MAX_QUESTIONS = 100;
-const DEFAULT_TITLE = '原神 クイズパーティー';
 
 function makeCode() {
   for (let tries = 0; tries < 100; tries++) {
@@ -30,7 +28,11 @@ function safeName(name) {
   return String(name || '').trim().slice(0, 18) || 'プレイヤー';
 }
 
-function shuffleArray(arr) {
+function safeText(text) {
+  return String(text || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+}
+
+function shuffle(arr) {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -39,66 +41,24 @@ function shuffleArray(arr) {
   return copy;
 }
 
-function hasTripleStreak(slots) {
-  for (let i = 2; i < slots.length; i++) {
-    if (slots[i] === slots[i - 1] && slots[i] === slots[i - 2]) return true;
-  }
-  return false;
-}
-
-function makeBalancedAnswerSlots(count) {
-  const base = [];
-  for (let i = 0; i < count; i++) base.push(i % 4);
-  let slots = shuffleArray(base);
-  for (let tries = 0; tries < 200 && hasTripleStreak(slots); tries++) slots = shuffleArray(base);
-  return slots;
-}
-
-function buildPlayQuestions(sourceQuestions) {
-  const questions = shuffleArray(sourceQuestions.map(q => ({
-    text: q.text,
-    ko: q.ko || '',
-    options: [...q.options],
-    optionsKo: Array.isArray(q.optionsKo) ? [...q.optionsKo] : ['', '', '', ''],
-    answer: q.answer
-  })));
-
-  const answerSlots = makeBalancedAnswerSlots(questions.length);
-
-  return questions.map((q, index) => {
-    const choices = q.options.map((text, i) => ({ text, ko: q.optionsKo[i] || '' }));
-    const correctChoice = choices[q.answer];
-    const wrongChoices = shuffleArray(choices.filter((_, i) => i !== q.answer));
-    const target = answerSlots[index];
-    const arranged = new Array(4);
-    arranged[target] = correctChoice;
-    let wi = 0;
-    for (let i = 0; i < 4; i++) if (i !== target) arranged[i] = wrongChoices[wi++];
-
-    return {
-      text: q.text,
-      ko: q.ko,
-      options: arranged.map(x => x.text),
-      optionsKo: arranged.map(x => x.ko),
-      answer: target
-    };
-  });
-}
-
 function publicPlayers(room) {
   return [...room.players.values()]
     .map(p => ({ id: p.id, name: p.name, score: p.score, isHost: p.id === room.hostId }))
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ja'));
+}
+
+function modeTitle(mode) {
+  return mode === 'oneLiner' ? 'お題で一言' : '価値観一致ゲーム';
 }
 
 function lobbyState(room) {
   return {
     code: room.code,
-    title: room.title,
     status: room.status,
-    players: publicPlayers(room),
-    questionCount: room.questions.length,
-    secondsPerQuestion: room.secondsPerQuestion
+    mode: room.mode,
+    modeTitle: modeTitle(room.mode),
+    rounds: room.rounds,
+    players: publicPlayers(room)
   };
 }
 
@@ -106,131 +66,212 @@ function emitLobby(room) {
   io.to(room.code).emit('lobby-state', lobbyState(room));
 }
 
-function normalizeQuestions(raw) {
-  if (!Array.isArray(raw)) return null;
-  const cleaned = raw.slice(0, MAX_QUESTIONS).map(q => {
-    const text = String(q?.text || '').trim().slice(0, 260);
-    const ko = String(q?.ko || '').trim().slice(0, 260);
-    const options = Array.isArray(q?.options)
-      ? q.options.slice(0, 4).map(x => String(x || '').trim().slice(0, 120))
-      : [];
-    const optionsKo = Array.isArray(q?.optionsKo)
-      ? q.optionsKo.slice(0, 4).map(x => String(x || '').trim().slice(0, 120))
-      : ['', '', '', ''];
-    while (optionsKo.length < 4) optionsKo.push('');
-    const answer = Number(q?.answer);
-    if (!text || options.length !== 4 || options.some(x => !x) || !Number.isInteger(answer) || answer < 0 || answer > 3) return null;
-    return { text, ko, options, optionsKo, answer };
-  }).filter(Boolean);
-  return cleaned.length ? cleaned : null;
+function clearTimer(room) {
+  if (room.timer) clearTimeout(room.timer);
+  room.timer = null;
 }
 
-function clearRoomTimers(room) {
-  if (room.answerTimer) clearTimeout(room.answerTimer);
-  if (room.nextTimer) clearTimeout(room.nextTimer);
-  room.answerTimer = null;
-  room.nextTimer = null;
+function roundProgress(room) {
+  return { round: room.roundIndex + 1, total: room.playPrompts.length };
 }
 
-function sendQuestion(room) {
-  clearRoomTimers(room);
-  room.answered.clear();
-  room.answers.clear();
-  room.questionResolved = false;
-  room.questionStartedAt = Date.now();
-
-  const q = room.playQuestions[room.questionIndex];
-  io.to(room.code).emit('question', {
-    index: room.questionIndex,
-    total: room.playQuestions.length,
-    text: q.text,
-    ko: q.ko,
-    options: q.options,
-    optionsKo: q.optionsKo,
-    seconds: room.secondsPerQuestion
-  });
-
-  room.answerTimer = setTimeout(() => revealAnswer(room), room.secondsPerQuestion * 1000);
-}
-
-function revealAnswer(room) {
-  if (!rooms.has(room.code) || room.status !== 'playing' || room.questionResolved) return;
-  room.questionResolved = true;
-  clearTimeout(room.answerTimer);
-  room.answerTimer = null;
-
-  const q = room.playQuestions[room.questionIndex];
-  const wrongPlayers = [];
-  const unansweredPlayers = [];
-
-  for (const p of room.players.values()) {
-    if (!room.answers.has(p.id)) {
-      unansweredPlayers.push({ id: p.id, name: p.name });
-      continue;
-    }
-    const picked = room.answers.get(p.id);
-    if (picked !== q.answer) wrongPlayers.push({ id: p.id, name: p.name, answerIndex: picked });
-  }
-
-  io.to(room.code).emit('answer-reveal', {
-    correctIndex: q.answer,
-    players: publicPlayers(room),
-    wrongPlayers,
-    unansweredPlayers
-  });
-
-  room.nextTimer = setTimeout(() => {
+function nextRound(room, delay = 5200) {
+  clearTimer(room);
+  room.timer = setTimeout(() => {
     if (!rooms.has(room.code) || room.status !== 'playing') return;
-    room.questionIndex += 1;
-    if (room.questionIndex >= room.playQuestions.length) finishGame(room);
-    else sendQuestion(room);
-  }, 5200);
+    room.roundIndex += 1;
+    if (room.roundIndex >= room.playPrompts.length) finishGame(room);
+    else startRound(room);
+  }, delay);
 }
 
 function finishGame(room) {
-  clearRoomTimers(room);
+  clearTimer(room);
   room.status = 'finished';
+  room.phase = 'finished';
   io.to(room.code).emit('game-finished', { players: publicPlayers(room) });
   emitLobby(room);
 }
 
+function startRound(room) {
+  clearTimer(room);
+  room.responses = new Map();
+  room.votes = new Map();
+  room.submissions = [];
+  const prompt = room.playPrompts[room.roundIndex];
+
+  if (room.mode === 'values') {
+    room.phase = 'value-answering';
+    io.to(room.code).emit('value-round', {
+      ...roundProgress(room),
+      text: prompt.text,
+      options: prompt.options,
+      seconds: 20
+    });
+    room.timer = setTimeout(() => revealValues(room), 20000);
+  } else {
+    room.phase = 'one-writing';
+    io.to(room.code).emit('one-liner-round', {
+      ...roundProgress(room),
+      text: prompt,
+      seconds: 35
+    });
+    room.timer = setTimeout(() => beginVoting(room), 35000);
+  }
+}
+
+function revealValues(room) {
+  if (!rooms.has(room.code) || room.status !== 'playing' || room.phase !== 'value-answering') return;
+  clearTimer(room);
+  room.phase = 'value-result';
+  const prompt = room.playPrompts[room.roundIndex];
+  const counts = [0, 0, 0, 0];
+  const voters = [[], [], [], []];
+
+  for (const p of room.players.values()) {
+    const picked = room.responses.get(p.id);
+    if (Number.isInteger(picked) && picked >= 0 && picked < 4) {
+      counts[picked] += 1;
+      voters[picked].push(p.name);
+    }
+  }
+
+  const max = Math.max(...counts);
+  const winners = max > 0 ? counts.map((n, i) => n === max ? i : -1).filter(i => i >= 0) : [];
+  for (const p of room.players.values()) {
+    if (winners.includes(room.responses.get(p.id))) p.score += 500;
+  }
+
+  io.to(room.code).emit('value-result', {
+    ...roundProgress(room),
+    text: prompt.text,
+    options: prompt.options,
+    counts,
+    voters,
+    winners,
+    players: publicPlayers(room)
+  });
+  nextRound(room, 6000);
+}
+
+function beginVoting(room) {
+  if (!rooms.has(room.code) || room.status !== 'playing' || room.phase !== 'one-writing') return;
+  clearTimer(room);
+
+  const entries = [];
+  for (const [authorId, text] of room.responses.entries()) {
+    if (text) entries.push({
+      id: Math.random().toString(36).slice(2, 10),
+      authorId,
+      text
+    });
+  }
+  room.submissions = shuffle(entries);
+  room.votes = new Map();
+
+  if (!room.submissions.length) {
+    room.phase = 'one-result';
+    io.to(room.code).emit('one-liner-result', {
+      ...roundProgress(room),
+      entries: [],
+      players: publicPlayers(room),
+      message: '今回は回答がありませんでした。'
+    });
+    return nextRound(room, 3500);
+  }
+
+  room.phase = 'one-voting';
+  for (const p of room.players.values()) {
+    io.to(p.id).emit('one-liner-vote', {
+      ...roundProgress(room),
+      submissions: room.submissions.map(s => ({ id: s.id, text: s.text, mine: s.authorId === p.id })),
+      seconds: 20
+    });
+  }
+  io.to(room.code).emit('vote-progress', { voted: 0, total: eligibleVoters(room).length });
+  room.timer = setTimeout(() => revealOneLiner(room), 20000);
+
+  if (eligibleVoters(room).length === 0) {
+    clearTimer(room);
+    room.timer = setTimeout(() => revealOneLiner(room), 1200);
+  }
+}
+
+function eligibleVoters(room) {
+  return [...room.players.keys()].filter(pid => room.submissions.some(s => s.authorId !== pid));
+}
+
+function revealOneLiner(room) {
+  if (!rooms.has(room.code) || room.status !== 'playing' || room.phase !== 'one-voting') return;
+  clearTimer(room);
+  room.phase = 'one-result';
+
+  const voteCounts = new Map(room.submissions.map(s => [s.id, 0]));
+  for (const submissionId of room.votes.values()) {
+    if (voteCounts.has(submissionId)) voteCounts.set(submissionId, voteCounts.get(submissionId) + 1);
+  }
+
+  const maxVotes = Math.max(0, ...voteCounts.values());
+  const winnerIds = maxVotes > 0
+    ? [...voteCounts.entries()].filter(([, n]) => n === maxVotes).map(([id]) => id)
+    : [];
+
+  for (const s of room.submissions) {
+    const author = room.players.get(s.authorId);
+    if (!author) continue;
+    author.score += (voteCounts.get(s.id) || 0) * 200;
+    if (winnerIds.includes(s.id)) author.score += 500;
+  }
+
+  const entries = room.submissions.map(s => ({
+    id: s.id,
+    text: s.text,
+    authorName: room.players.get(s.authorId)?.name || '退出した人',
+    votes: voteCounts.get(s.id) || 0,
+    winner: winnerIds.includes(s.id)
+  })).sort((a, b) => b.votes - a.votes);
+
+  io.to(room.code).emit('one-liner-result', {
+    ...roundProgress(room),
+    entries,
+    players: publicPlayers(room)
+  });
+  nextRound(room, 7000);
+}
+
 io.on('connection', socket => {
-  socket.on('create-room', ({ name }) => {
+  socket.on('create-room', ({ name, mode }) => {
     const code = makeCode();
+    const selectedMode = mode === 'oneLiner' ? 'oneLiner' : 'values';
     const room = {
       code,
-      title: DEFAULT_TITLE,
       hostId: socket.id,
       status: 'lobby',
+      phase: 'lobby',
+      mode: selectedMode,
+      rounds: 8,
       players: new Map(),
-      questions: DEFAULT_QUESTIONS.map(q => ({ ...q, options: [...q.options], optionsKo: [...q.optionsKo] })),
-      playQuestions: [],
-      secondsPerQuestion: 15,
-      questionIndex: 0,
-      answered: new Set(),
-      answers: new Map(),
-      questionResolved: false,
-      questionStartedAt: 0,
-      answerTimer: null,
-      nextTimer: null
+      playPrompts: [],
+      roundIndex: 0,
+      responses: new Map(),
+      votes: new Map(),
+      submissions: [],
+      timer: null
     };
-
     room.players.set(socket.id, { id: socket.id, name: safeName(name), score: 0 });
     rooms.set(code, room);
     socket.join(code);
     socket.data.roomCode = code;
     socket.emit('room-created', { code, isHost: true });
-    socket.emit('quiz-data', { questions: room.questions, secondsPerQuestion: room.secondsPerQuestion, title: room.title });
     emitLobby(room);
   });
 
   socket.on('join-room', ({ code, name }) => {
     code = String(code || '').trim().toUpperCase();
     const room = rooms.get(code);
-    if (!room) return socket.emit('join-error', 'そのルームは見つかりません。ルームコードを確認してね。');
-    if (room.status !== 'lobby') return socket.emit('join-error', 'このルームはすでにゲーム中です。次のゲームを待ってね！');
+    if (!room) return socket.emit('join-error', 'そのルームは見つかりません。');
+    if (room.status !== 'lobby') return socket.emit('join-error', 'このルームはすでにゲーム中です。');
     if (room.players.size >= MAX_PLAYERS) return socket.emit('join-error', 'このルームは満員です。');
-
     room.players.set(socket.id, { id: socket.id, name: safeName(name), score: 0 });
     socket.join(code);
     socket.data.roomCode = code;
@@ -238,76 +279,79 @@ io.on('connection', socket => {
     emitLobby(room);
   });
 
-  socket.on('update-quiz', ({ code, title, questions, secondsPerQuestion }) => {
+  socket.on('update-settings', ({ code, mode, rounds }) => {
     const room = rooms.get(String(code || '').toUpperCase());
     if (!room || room.hostId !== socket.id || room.status !== 'lobby') return;
-    const normalized = normalizeQuestions(questions);
-    if (!normalized) return socket.emit('quiz-error', '問題形式を確認してね。各問題には4つの選択肢と1つの正解が必要です。');
-
-    room.questions = normalized;
-    room.title = String(title || room.title).trim().slice(0, 40) || DEFAULT_TITLE;
-    const s = Number(secondsPerQuestion);
-    room.secondsPerQuestion = Number.isFinite(s) ? Math.min(60, Math.max(5, Math.round(s))) : 15;
-    socket.emit('quiz-saved');
+    room.mode = mode === 'oneLiner' ? 'oneLiner' : 'values';
+    const r = Number(rounds);
+    room.rounds = [5, 8, 10, 12].includes(r) ? r : 8;
     emitLobby(room);
   });
 
   socket.on('start-game', ({ code }) => {
     const room = rooms.get(String(code || '').toUpperCase());
-    if (!room || room.hostId !== socket.id || room.status !== 'lobby' || room.questions.length < 1) return;
-
+    if (!room || room.hostId !== socket.id || room.status !== 'lobby') return;
+    const source = room.mode === 'oneLiner' ? oneLinerPrompts : valuePrompts;
+    room.playPrompts = shuffle(source).slice(0, Math.min(room.rounds, source.length));
+    room.roundIndex = 0;
     room.status = 'playing';
-    room.questionIndex = 0;
-    room.playQuestions = buildPlayQuestions(room.questions);
-    room.answers.clear();
-    room.answered.clear();
+    room.phase = 'starting';
     for (const p of room.players.values()) p.score = 0;
-
     emitLobby(room);
-    io.to(room.code).emit('game-started');
+    io.to(room.code).emit('game-started', { mode: room.mode, modeTitle: modeTitle(room.mode) });
     setTimeout(() => {
-      if (rooms.has(room.code) && room.status === 'playing') sendQuestion(room);
+      if (rooms.has(room.code) && room.status === 'playing') startRound(room);
     }, 900);
   });
 
-  socket.on('submit-answer', ({ code, answerIndex }) => {
+  socket.on('submit-value', ({ code, choice }) => {
     const room = rooms.get(String(code || '').toUpperCase());
-    if (!room || room.status !== 'playing' || room.questionResolved || !room.players.has(socket.id) || room.answered.has(socket.id)) return;
-
-    const idx = Number(answerIndex);
+    if (!room || room.status !== 'playing' || room.phase !== 'value-answering' || room.responses.has(socket.id)) return;
+    const idx = Number(choice);
     if (!Number.isInteger(idx) || idx < 0 || idx > 3) return;
+    room.responses.set(socket.id, idx);
+    socket.emit('submission-locked', '選択しました！');
+    io.to(room.code).emit('answer-progress', { done: room.responses.size, total: room.players.size });
+    if (room.responses.size >= room.players.size) setTimeout(() => revealValues(room), 450);
+  });
 
-    room.answered.add(socket.id);
-    room.answers.set(socket.id, idx);
+  socket.on('submit-one-liner', ({ code, text }) => {
+    const room = rooms.get(String(code || '').toUpperCase());
+    if (!room || room.status !== 'playing' || room.phase !== 'one-writing' || room.responses.has(socket.id)) return;
+    const cleaned = safeText(text);
+    if (!cleaned) return socket.emit('input-error', '一言を入力してね！');
+    room.responses.set(socket.id, cleaned);
+    socket.emit('submission-locked', '回答を送信しました！');
+    io.to(room.code).emit('answer-progress', { done: room.responses.size, total: room.players.size });
+    if (room.responses.size >= room.players.size) setTimeout(() => beginVoting(room), 450);
+  });
 
-    const q = room.playQuestions[room.questionIndex];
-    const elapsed = Date.now() - room.questionStartedAt;
-    const totalMs = room.secondsPerQuestion * 1000;
-    if (idx === q.answer) {
-      const remainingRatio = Math.max(0, 1 - elapsed / totalMs);
-      const gained = Math.round(500 + 500 * remainingRatio);
-      room.players.get(socket.id).score += gained;
-    }
-
-    socket.emit('answer-locked', { submitted: true });
-    io.to(room.code).emit('answer-progress', { answered: room.answered.size, total: room.players.size });
-    if (room.answered.size >= room.players.size) setTimeout(() => revealAnswer(room), 500);
+  socket.on('submit-vote', ({ code, submissionId }) => {
+    const room = rooms.get(String(code || '').toUpperCase());
+    if (!room || room.status !== 'playing' || room.phase !== 'one-voting' || room.votes.has(socket.id)) return;
+    const target = room.submissions.find(s => s.id === String(submissionId));
+    if (!target || target.authorId === socket.id) return socket.emit('input-error', '自分の回答には投票できません。');
+    room.votes.set(socket.id, target.id);
+    socket.emit('vote-locked');
+    const eligible = eligibleVoters(room);
+    const voted = eligible.filter(id => room.votes.has(id)).length;
+    io.to(room.code).emit('vote-progress', { voted, total: eligible.length });
+    if (voted >= eligible.length) setTimeout(() => revealOneLiner(room), 450);
   });
 
   socket.on('restart-lobby', ({ code }) => {
     const room = rooms.get(String(code || '').toUpperCase());
     if (!room || room.hostId !== socket.id || room.status !== 'finished') return;
-
+    clearTimer(room);
     room.status = 'lobby';
-    room.questionIndex = 0;
-    room.playQuestions = [];
-    room.answered.clear();
-    room.answers.clear();
-    room.questionResolved = false;
+    room.phase = 'lobby';
+    room.playPrompts = [];
+    room.roundIndex = 0;
+    room.responses.clear();
+    room.votes.clear();
+    room.submissions = [];
     for (const p of room.players.values()) p.score = 0;
-
     io.to(room.code).emit('back-to-lobby');
-    socket.emit('quiz-data', { questions: room.questions, secondsPerQuestion: room.secondsPerQuestion, title: room.title });
     emitLobby(room);
   });
 
@@ -316,27 +360,18 @@ io.on('connection', socket => {
     if (!code) return;
     const room = rooms.get(code);
     if (!room) return;
-
     if (room.hostId === socket.id) {
-      clearRoomTimers(room);
+      clearTimer(room);
       io.to(code).emit('room-closed', 'ホストが退出したため、ルームが終了しました。');
       rooms.delete(code);
       return;
     }
-
     room.players.delete(socket.id);
-    room.answered.delete(socket.id);
-    room.answers.delete(socket.id);
-
-    if (room.players.size === 0) {
-      clearRoomTimers(room);
-      rooms.delete(code);
-    } else {
-      emitLobby(room);
-      if (room.status === 'playing' && !room.questionResolved && room.answered.size >= room.players.size) revealAnswer(room);
-    }
+    room.responses.delete(socket.id);
+    room.votes.delete(socket.id);
+    emitLobby(room);
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Genshin Quiz Party running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Party Mix running on port ${PORT}`));
