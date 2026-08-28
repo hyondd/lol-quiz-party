@@ -6,14 +6,22 @@ const { valuePrompts, oneLinerPrompts } = require('./questions');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: true, credentials: false } });
+const io = new Server(server, {
+  cors: { origin: true, credentials: false },
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: true
+  }
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (_, res) => res.json({ ok: true }));
 
 const rooms = new Map();
+const pendingDisconnects = new Map();
 const ROOM_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_PLAYERS = 40;
+const DISCONNECT_GRACE_MS = 30000;
 
 function makeCode() {
   for (let tries = 0; tries < 100; tries++) {
@@ -239,7 +247,78 @@ function revealOneLiner(room) {
   nextRound(room, 7000);
 }
 
+function checkPhaseAfterPlayerChange(room) {
+  if (!room || room.status !== 'playing' || room.players.size === 0) return;
+
+  if (room.phase === 'value-answering' && room.responses.size >= room.players.size) {
+    setTimeout(() => revealValues(room), 200);
+    return;
+  }
+
+  if (room.phase === 'one-writing' && room.responses.size >= room.players.size) {
+    setTimeout(() => beginVoting(room), 200);
+    return;
+  }
+
+  if (room.phase === 'one-voting') {
+    const eligible = eligibleVoters(room);
+    const voted = eligible.filter(id => room.votes.has(id)).length;
+    io.to(room.code).emit('vote-progress', { voted, total: eligible.length });
+    if (voted >= eligible.length) setTimeout(() => revealOneLiner(room), 200);
+  }
+}
+
+function scheduleDisconnectCleanup(socket) {
+  const code = socket.data.roomCode;
+  if (!code) return;
+
+  const existing = pendingDisconnects.get(socket.id);
+  if (existing) clearTimeout(existing);
+
+  const timer = setTimeout(() => {
+    pendingDisconnects.delete(socket.id);
+    const room = rooms.get(code);
+    if (!room) return;
+
+    if (room.hostId === socket.id) {
+      clearTimer(room);
+      io.to(code).emit('room-closed', 'ホストとの接続が戻らなかったため、ルームが終了しました。');
+      rooms.delete(code);
+      return;
+    }
+
+    room.players.delete(socket.id);
+    room.responses.delete(socket.id);
+    room.votes.delete(socket.id);
+
+    if (room.players.size === 0) {
+      clearTimer(room);
+      rooms.delete(code);
+      return;
+    }
+
+    emitLobby(room);
+    checkPhaseAfterPlayerChange(room);
+  }, DISCONNECT_GRACE_MS);
+
+  pendingDisconnects.set(socket.id, timer);
+}
+
 io.on('connection', socket => {
+  const pending = pendingDisconnects.get(socket.id);
+  if (pending) {
+    clearTimeout(pending);
+    pendingDisconnects.delete(socket.id);
+  }
+
+  if (socket.recovered && socket.data.roomCode) {
+    const recoveredRoom = rooms.get(socket.data.roomCode);
+    if (recoveredRoom) {
+      socket.emit('connection-restored');
+      emitLobby(recoveredRoom);
+    }
+  }
+
   socket.on('create-room', ({ name, mode }) => {
     const code = makeCode();
     const selectedMode = mode === 'oneLiner' ? 'oneLiner' : 'values';
@@ -356,20 +435,7 @@ io.on('connection', socket => {
   });
 
   socket.on('disconnect', () => {
-    const code = socket.data.roomCode;
-    if (!code) return;
-    const room = rooms.get(code);
-    if (!room) return;
-    if (room.hostId === socket.id) {
-      clearTimer(room);
-      io.to(code).emit('room-closed', 'ホストが退出したため、ルームが終了しました。');
-      rooms.delete(code);
-      return;
-    }
-    room.players.delete(socket.id);
-    room.responses.delete(socket.id);
-    room.votes.delete(socket.id);
-    emitLobby(room);
+    scheduleDisconnectCleanup(socket);
   });
 });
 
