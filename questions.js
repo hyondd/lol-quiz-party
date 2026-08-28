@@ -1,44 +1,42 @@
 module.exports = [
-  // ===== 基本情報 =====
-  { text: '【基本】学校の正式名称は？', ko: '【기본】학교의 정식 명칭은?', options: ['熊本市立千原台高等学校', '熊本県立千原台高等学校', '熊本市立島崎高等学校', '熊本県立商業高等学校'], optionsKo: ['구마모토시립 치하라다이 고등학교', '구마모토현립 치하라다이 고등학교', '구마모토시립 시마사키 고등학교', '구마모토현립 상업고등학교'], answer: 0 },
-  { text: '【基本】千原台高校の設置者は？', ko: '【기본】치하라다이 고등학교의 설립 주체는?', options: ['熊本市', '熊本県', '国', '学校法人'], optionsKo: ['구마모토시', '구마모토현', '국가', '학교법인'], answer: 0 },
-  { text: '【基本】千原台高校がある区は？', ko: '【기본】치하라다이 고등학교가 위치한 구는?', options: ['熊本市西区', '熊本市中央区', '熊本市東区', '熊本市南区'], optionsKo: ['구마모토시 니시구', '구마모토시 주오구', '구마모토시 히가시구', '구마모토시 미나미구'], answer: 0 },
-  { text: '【学科】現在の2学科の組み合わせとして正しいのは？', ko: '【학과】현재 두 학과의 올바른 조합은?', options: ['情報ビジネス探究科・健康スポーツ探究科', '普通科・情報科', '商業科・工業科', '国際科・体育科'], optionsKo: ['정보비즈니스탐구과・건강스포츠탐구과', '보통과・정보과', '상업과・공업과', '국제과・체육과'], answer: 0 },
-  { text: '【学科】現在の「情報ビジネス探究科」「健康スポーツ探究科」への学科改編が始まったのは？', ko: '【학과】현재 정보비즈니스탐구과와 건강스포츠탐구과로 개편된 시기는?', options: ['2023年4月', '2020年4月', '2024年4月', '2018年4月'], optionsKo: ['2023년 4월', '2020년 4월', '2024년 4월', '2018년 4월'], answer: 0 },
-  { text: '【学科】学科改編前の主な学科構成は？', ko: '【학과】학과 개편 전의 주요 학과 구성은?', options: ['普通科・情報科', '商業科・工業科', '普通科・看護科', '情報科・農業科'], optionsKo: ['보통과・정보과', '상업과・공업과', '보통과・간호과', '정보과・농업과'], answer: 0 },
+  // ===== T1 歴史・優勝 =====
+  { text: '【歴史】現在の「T1」が2019年以前に主に使っていたチーム名は？', ko: '【역사】현재의 T1이 2019년 이전에 주로 사용하던 팀명은?', options: ['SK Telecom T1', 'Samsung T1', 'KT T1', 'Seoul T1'], optionsKo: ['SK Telecom T1', 'Samsung T1', 'KT T1', 'Seoul T1'], answer: 0 },
+  { text: '【歴史】2012年、SK Telecom T1がIEM Cologne決勝で破ったチームは？', ko: '【역사】2012년 SK Telecom T1이 IEM Cologne 결승에서 꺾은 팀은?', options: ['Fnatic', 'Gambit Gaming', 'CLG', 'Azubu Frost'], optionsKo: ['Fnatic', 'Gambit Gaming', 'CLG', 'Azubu Frost'], answer: 0 },
+  { text: '【Worlds】2013年、Fakerの最初のWorlds優勝となった決勝の相手は？', ko: '【월즈】2013년 Faker의 첫 월즈 우승 당시 결승 상대는?', options: ['Royal Club Huang Zu', 'Samsung Ozone', 'NaJin Black Sword', 'OMG'], optionsKo: ['Royal Club Huang Zu', 'Samsung Ozone', 'NaJin Black Sword', 'OMG'], answer: 0 },
+  { text: '【Worlds】2015 Worlds決勝でSKTが3-1で破った相手は？', ko: '【월즈】2015 월즈 결승에서 SKT가 3-1로 꺾은 상대는?', options: ['KOO Tigers', 'Fnatic', 'Origen', 'EDward Gaming'], optionsKo: ['KOO Tigers', 'Fnatic', 'Origen', 'EDward Gaming'], answer: 0 },
+  { text: '【Worlds】2016 Worlds決勝でSKTが5ゲームの末に破ったチームは？', ko: '【월즈】2016 월즈 결승에서 SKT가 5세트 끝에 꺾은 팀은?', options: ['Samsung Galaxy', 'ROX Tigers', 'RNG', 'Cloud9'], optionsKo: ['Samsung Galaxy', 'ROX Tigers', 'RNG', 'Cloud9'], answer: 0 },
+  { text: '【LCK】2022 Spring、T1がレギュラーシーズンで記録したシリーズ成績は？', ko: '【LCK】2022 스프링 T1이 정규 시즌에서 기록한 시리즈 성적은?', options: ['18勝0敗', '17勝1敗', '16勝2敗', '18勝1敗'], optionsKo: ['18승 0패', '17승 1패', '16승 2패', '18승 1패'], answer: 0 },
+  { text: '【Worlds】2023 Worlds決勝でT1が3-0で破ったチームは？', ko: '【월즈】2023 월즈 결승에서 T1이 3-0으로 꺾은 팀은?', options: ['Weibo Gaming', 'JD Gaming', 'Bilibili Gaming', 'LNG Esports'], optionsKo: ['Weibo Gaming', 'JD Gaming', 'Bilibili Gaming', 'LNG Esports'], answer: 0 },
+  { text: '【Worlds】2024 Worlds決勝でT1が3-2で破った相手は？', ko: '【월즈】2024 월즈 결승에서 T1이 3-2로 꺾은 상대는?', options: ['Bilibili Gaming', 'Gen.G', 'Top Esports', 'Weibo Gaming'], optionsKo: ['Bilibili Gaming', 'Gen.G', 'Top Esports', 'Weibo Gaming'], answer: 0 },
+  { text: '【Worlds】2025 Worlds決勝、T1が3-2で破った「通信会社ライバル」は？', ko: '【월즈】2025 월즈 결승에서 T1이 3-2로 꺾은 통신사 라이벌은?', options: ['KT Rolster', 'Gen.G', 'Hanwha Life Esports', 'DRX'], optionsKo: ['KT Rolster', 'Gen.G', 'Hanwha Life Esports', 'DRX'], answer: 0 },
+  { text: '【記録】2025 Worlds終了時点で、T1組織のWorlds優勝回数は合計何回？', ko: '【기록】2025 월즈 종료 시점 T1 조직의 월즈 우승 횟수는 총 몇 회?', options: ['6回', '5回', '7回', '4回'], optionsKo: ['6회', '5회', '7회', '4회'], answer: 0 },
+  { text: '【記録】T1が3年連続Worlds優勝を達成した期間は？', ko: '【기록】T1이 월즈 3연속 우승을 달성한 기간은?', options: ['2023～2025', '2015～2017', '2022～2024', '2024～2026'], optionsKo: ['2023~2025', '2015~2017', '2022~2024', '2024~2026'], answer: 0 },
+  { text: '【EWC】2024 Esports World Cup決勝でT1が破ったチームは？', ko: '【EWC】2024 Esports World Cup 결승에서 T1이 꺾은 팀은?', options: ['Top Esports', 'Bilibili Gaming', 'Gen.G', 'G2 Esports'], optionsKo: ['Top Esports', 'Bilibili Gaming', 'Gen.G', 'G2 Esports'], answer: 0 },
 
-  // ===== 校訓・学校づくり =====
-  { text: '【校訓】千原台高校の校訓は？', ko: '【교훈】치하라다이 고등학교의 교훈은?', options: ['誠実・創造・友愛', '自主・自律・創造', '質実剛健・敬愛・努力', '誠実・勤労・感謝'], optionsKo: ['성실・창조・우애', '자주・자율・창조', '질실강건・경애・노력', '성실・근로・감사'], answer: 0 },
-  { text: '【学校づくり】教育目標で掲げられている言葉は？', ko: '【학교 만들기】교육 목표로 내세우는 문구는?', options: ['「一生懸命はカッコイイ」を実践する学校づくり', '「勉強だけがすべて」を実践する学校づくり', '「全国一の進学校」を目指す学校づくり', '「部活動をしない」学校づくり'], optionsKo: ['「열심히 하는 것은 멋지다」를 실천하는 학교 만들기', '「공부만이 전부」를 실천하는 학교 만들기', '「전국 최고의 진학교」를 목표로 하는 학교 만들기', '「동아리를 하지 않는」 학교 만들기'], answer: 0 },
-  { text: '【学校づくり】成長の好循環を表す3つの言葉の組み合わせは？', ko: '【학교 만들기】성장의 선순환을 나타내는 세 단어의 조합은?', options: ['チャレンジ・チェンジ・チャンス', 'チャレンジ・チーム・チャンピオン', 'チェンジ・チョイス・チェック', 'チャンス・チャージ・チア'], optionsKo: ['챌린지・체인지・찬스', '챌린지・팀・챔피언', '체인지・초이스・체크', '찬스・차지・치어'], answer: 0 },
+  // ===== 現役・ロスター =====
+  { text: '【2026】2026年8月時点、T1のBotレーナーは？', ko: '【2026】2026년 8월 기준 T1의 바텀 라이너는?', options: ['Peyz', 'Gumayusi', 'Smash', 'Teddy'], optionsKo: ['Peyz', 'Gumayusi', 'Smash', 'Teddy'], answer: 0 },
+  { text: '【2026】2026年8月時点、T1のTopレーナーは？', ko: '【2026】2026년 8월 기준 T1의 탑 라이너는?', options: ['Doran', 'Zeus', 'Canna', 'Kingen'], optionsKo: ['Doran', 'Zeus', 'Canna', 'Kingen'], answer: 0 },
+  { text: '【2026】2026年のT1でHead Coachを務めているのは？', ko: '【2026】2026년 T1의 헤드 코치는?', options: ['Tom', 'kkOma', 'Mata', 'Easyhoon'], optionsKo: ['Tom', 'kkOma', 'Mata', 'Easyhoon'], answer: 0 },
+  { text: '【2026】2026年8月時点のT1先発5人として正しい組み合わせは？', ko: '【2026】2026년 8월 기준 T1 선발 5인 조합으로 맞는 것은?', options: ['Doran・Oner・Faker・Peyz・Keria', 'Zeus・Oner・Faker・Gumayusi・Keria', 'Doran・Canyon・Faker・Peyz・Lehends', 'Kingen・Oner・Chovy・Peyz・Keria'], optionsKo: ['Doran・Oner・Faker・Peyz・Keria', 'Zeus・Oner・Faker・Gumayusi・Keria', 'Doran・Canyon・Faker・Peyz・Lehends', 'Kingen・Oner・Chovy・Peyz・Keria'], answer: 0 },
+  { text: '【2025】2025 Worlds決勝MVPを獲得したT1選手は？', ko: '【2025】2025 월즈 결승 MVP를 받은 T1 선수는?', options: ['Gumayusi', 'Faker', 'Oner', 'Keria'], optionsKo: ['Gumayusi', 'Faker', 'Oner', 'Keria'], answer: 0 },
 
-  // ===== 沿革 =====
-  { text: '【沿革】千原台高校のルーツは、1957年にどこへ設置された学科？', ko: '【연혁】치하라다이 고등학교의 뿌리는 1957년에 어디에 설치된 학과인가?', options: ['熊本市立高等学校の商業科', '熊本大学の商業科', '熊本県立第一高校の情報科', '熊本市立中学校の普通科'], optionsKo: ['구마모토시립 고등학교의 상업과', '구마모토대학의 상업과', '구마모토현립 제1고의 정보과', '구마모토시립 중학교의 보통과'], answer: 0 },
-  { text: '【沿革】分離独立した年は？', ko: '【연혁】분리 독립한 해는?', options: ['1959年', '1957年', '1964年', '1974年'], optionsKo: ['1959년', '1957년', '1964년', '1974년'], answer: 0 },
-  { text: '【沿革】1959年に分離独立したときの校名は？', ko: '【연혁】1959년에 분리 독립했을 당시의 학교 이름은?', options: ['熊本市立商業高等学校', '熊本市立千原台高等学校', '熊本県立商業高等学校', '熊本市立情報高等学校'], optionsKo: ['구마모토시립 상업고등학교', '구마모토시립 치하라다이 고등학교', '구마모토현립 상업고등학교', '구마모토시립 정보고등학교'], answer: 0 },
-  { text: '【沿革】男女共学になった年は？', ko: '【연혁】남녀공학이 된 해는?', options: ['1974年', '1964年', '1988年', '2000年'], optionsKo: ['1974년', '1964년', '1988년', '2000년'], answer: 0 },
-  { text: '【沿革】情報処理科が設置された年は？', ko: '【연혁】정보처리과가 설치된 해는?', options: ['1988年', '1974年', '1995年', '2003年'], optionsKo: ['1988년', '1974년', '1995년', '2003년'], answer: 0 },
-  { text: '【沿革】「熊本市立千原台高等学校」という現在の校名になった年は？', ko: '【연혁】현재의 구마모토시립 치하라다이 고등학교라는 교명이 된 해는?', options: ['2000年', '1988年', '1995年', '2007年'], optionsKo: ['2000년', '1988년', '1995년', '2007년'], answer: 0 },
-  { text: '【沿革】2000年の校名変更・学科改編後に設置された2学科は？', ko: '【연혁】2000년 교명 변경과 학과 개편 후 설치된 두 학과는?', options: ['普通科・情報科', '商業科・普通科', '情報ビジネス探究科・健康スポーツ探究科', '国際科・体育科'], optionsKo: ['보통과・정보과', '상업과・보통과', '정보비즈니스탐구과・건강스포츠탐구과', '국제과・체육과'], answer: 0 },
-  { text: '【旧コース】旧・普通科にあったコースの組み合わせは？', ko: '【구 코스】예전 보통과에 있었던 코스 조합은?', options: ['国際経済・健康スポーツ', 'OA会計・経営情報', '国際文化・情報処理', '体育・看護'], optionsKo: ['국제경제・건강스포츠', 'OA회계・경영정보', '국제문화・정보처리', '체육・간호'], answer: 0 },
-  { text: '【旧コース】旧・情報科にあったコースの組み合わせは？', ko: '【구 코스】예전 정보과에 있었던 코스 조합은?', options: ['OA会計・経営情報', '国際経済・健康スポーツ', '会計・看護', '情報・国際文化'], optionsKo: ['OA회계・경영정보', '국제경제・건강스포츠', '회계・간호', '정보・국제문화'], answer: 0 },
+  // ===== Worldsスキン・細かいT1知識 =====
+  { text: '【スキン】T1の2023 Worlds優勝スキンでFakerが選んだチャンピオンは？', ko: '【스킨】T1 2023 월즈 우승 스킨에서 Faker가 선택한 챔피언은?', options: ['Orianna', 'Azir', 'Ahri', 'Syndra'], optionsKo: ['오리아나', '아지르', '아리', '신드라'], answer: 0 },
+  { text: '【スキン】T1の2024 Worlds優勝スキンでFakerのチャンピオンは？', ko: '【스킨】T1 2024 월즈 우승 스킨에서 Faker의 챔피언은?', options: ['Yone', 'Sylas', 'Galio', 'Akali'], optionsKo: ['요네', '사일러스', '갈리오', '아칼리'], answer: 0 },
+  { text: '【スキン】T1の2024 Worlds優勝スキンでKeriaのチャンピオンは？', ko: '【스킨】T1 2024 월즈 우승 스킨에서 Keria의 챔피언은?', options: ['Pyke', 'Renata Glasc', 'Bard', 'Rakan'], optionsKo: ['파이크', '레나타 글라스크', '바드', '라칸'], answer: 0 },
+  { text: '【スキン】T1の2025 Worlds優勝スキンでFakerのチャンピオンは？', ko: '【스킨】T1 2025 월즈 우승 스킨에서 Faker의 챔피언은?', options: ['Galio', 'Azir', 'Ryze', 'LeBlanc'], optionsKo: ['갈리오', '아지르', '라이즈', '르블랑'], answer: 0 },
 
-  // ===== スクール・ミッション／学び =====
-  { text: '【スクール・ミッション】千原台高校が育てたい力として含まれるのは？', ko: '【스쿨 미션】치하라다이 고등학교가 기르고자 하는 능력에 포함되는 것은?', options: ['多様な価値観を尊重し、新たな価値を創造する力', '答えを暗記する力だけ', '個人で競争する力だけ', '地域と関わらない力'], optionsKo: ['다양한 가치관을 존중하고 새로운 가치를 창조하는 힘', '정답만 암기하는 힘', '개인 경쟁 능력만', '지역과 관계하지 않는 힘'], answer: 0 },
-  { text: '【スクール・ミッション】社会に関する理解を深めたうえで見出すことを重視しているのは？', ko: '【스쿨 미션】사회에 대한 이해를 깊게 한 뒤 찾아내는 것을 중시하는 것은?', options: ['地域の課題や魅力', '海外の株価だけ', 'ゲームのランキングだけ', '学校外を避ける方法'], optionsKo: ['지역의 과제와 매력', '해외 주가만', '게임 랭킹만', '학교 밖을 피하는 방법'], answer: 0 },
-  { text: '【スクール・ミッション】自己の興味・関心に応じて目指す学び方は？', ko: '【스쿨 미션】자신의 흥미와 관심에 따라 목표로 하는 학습 방식은?', options: ['生涯にわたって学び続ける', '高校卒業後は学ばない', '得意科目だけ学ぶ', '試験前だけ学ぶ'], optionsKo: ['평생에 걸쳐 계속 배운다', '고교 졸업 후에는 배우지 않는다', '잘하는 과목만 배운다', '시험 전에만 배운다'], answer: 0 },
-  { text: '【市立ならでは】課題探究型学習で連携・協働する相手として公式に挙げられている組み合わせは？', ko: '【시립 특색】과제 탐구형 학습에서 연계·협력 대상으로 공식적으로 제시된 조합은?', options: ['市役所・市立専門学校・大学・企業など', '海外プロチームだけ', 'テレビ局だけ', '他校とは一切連携しない'], optionsKo: ['시청・시립 전문학교・대학・기업 등', '해외 프로팀만', '방송국만', '다른 학교와 전혀 협력하지 않는다'], answer: 0 },
-  { text: '【専門教育】千原台高校が推進する実践的・体験的な専門教育の4分野は？', ko: '【전문 교육】치하라다이 고등학교가 추진하는 실천적·체험적 전문교육의 네 분야는?', options: ['情報・ビジネス・健康・スポーツ', '文学・医学・農業・航空', '音楽・演劇・法律・建築', '数学・物理・化学・地学だけ'], optionsKo: ['정보・비즈니스・건강・스포츠', '문학・의학・농업・항공', '음악・연극・법률・건축', '수학・물리・화학・지학만'], answer: 0 },
-  { text: '【情報ビジネス探究科】資格取得の例として公式資料に挙げられている組み合わせは？', ko: '【정보비즈니스탐구과】자격 취득 예로 공식 자료에 제시된 조합은?', options: ['ITパスポート試験・日商簿記', '医師国家試験・司法試験', '一級建築士・薬剤師', '大型二種免許・航空管制官'], optionsKo: ['IT패스포트 시험・일상부기', '의사 국가시험・사법시험', '1급 건축사・약사', '대형 2종 면허・항공관제사'], answer: 0 },
-  { text: '【健康スポーツ探究科】公式資料で育成を目指すものとして最も近いのは？', ko: '【건강스포츠탐구과】공식 자료에서 육성을 목표로 하는 것으로 가장 가까운 것은?', options: ['生涯スポーツの担い手とトップアスリート', 'プロゲーマーだけ', '医師だけ', '芸術家だけ'], optionsKo: ['평생 스포츠의 담당자와 톱 애슬리트', '프로게이머만', '의사만', '예술가만'], answer: 0 },
+  // ===== ミーム・あだ名 =====
+  { text: '【ミーム】「ZOFGK」の5文字が表していた2022～2024のT1主力ロスターは？', ko: '【밈】ZOFGK 다섯 글자가 가리키던 2022~2024 T1 주전 로스터는?', options: ['Zeus・Oner・Faker・Gumayusi・Keria', 'Zeus・Oner・Faker・Peyz・Keria', 'Doran・Oner・Faker・Gumayusi・Keria', 'Canna・Cuzz・Faker・Teddy・Effort'], optionsKo: ['Zeus・Oner・Faker・Gumayusi・Keria', 'Zeus・Oner・Faker・Peyz・Keria', 'Doran・Oner・Faker・Gumayusi・Keria', 'Canna・Cuzz・Faker・Teddy・Effort'], answer: 0 },
+  { text: '【ミーム】韓国コミュニティで「大＋サンヒョク」というニュアンスの「대상혁」と呼ばれる選手は？', ko: '【밈】한국 커뮤니티에서 ‘대(大)+상혁’이라는 뉘앙스의 ‘대상혁’으로 불리는 선수는?', options: ['Faker', 'Oner', 'Keria', 'Doran'], optionsKo: ['Faker', 'Oner', 'Keria', 'Doran'], answer: 0 },
+  { text: '【ミーム】「역천괴（歴代級の天才怪物）」という愛称で特に知られるT1選手は？', ko: '【밈】‘역천괴(역대급 천재 괴물)’라는 별명으로 특히 유명한 T1 선수는?', options: ['Keria', 'Faker', 'Oner', 'Peyz'], optionsKo: ['Keria', 'Faker', 'Oner', 'Peyz'], answer: 0 },
+  { text: '【ミーム】Fakerがプロデビュー前に韓国Solo Queueで使っていたことで有名なIDは？', ko: '【밈】Faker가 프로 데뷔 전 한국 솔로랭크에서 사용한 것으로 유명한 ID는?', options: ['GoJeonPa（고전파）', 'Hide on bush', 'SKT Faker', 'Unkillable'], optionsKo: ['GoJeonPa(고전파)', 'Hide on bush', 'SKT Faker', 'Unkillable'], answer: 0 },
 
-  // ===== 探究・実績 =====
-  { text: '【探究】2024年度から始まった校内コンテストで中心となったテーマは？', ko: '【탐구】2024년도부터 시작된 교내 콘테스트의 중심 주제는?', options: ['ビジネス', '天文学', '古典文学', '料理だけ'], optionsKo: ['비즈니스', '천문학', '고전문학', '요리만'], answer: 0 },
-  { text: '【探究】校内コンテストの優秀企画に用意された支援として紹介されているものは？', ko: '【탐구】교내 콘테스트의 우수 기획에 제공되는 지원으로 소개된 것은?', options: ['活動資金や人的資源のサポート', '海外旅行だけ', '授業免除だけ', 'ゲーム機の配布'], optionsKo: ['활동 자금과 인적 자원 지원', '해외여행만', '수업 면제만', '게임기 배포'], answer: 0 },
-  { text: '【探究】校内コンテストがビジネスをテーマにした背景として紹介されているのは？', ko: '【탐구】교내 콘테스트가 비즈니스를 주제로 한 배경으로 소개된 것은?', options: ['学校の前身が商業高校だったこと', '学校が工業高校だったこと', '学校に商業の歴史がないこと', '全員が起業経験者だから'], optionsKo: ['학교의 전신이 상업고였기 때문', '학교가 공업고였기 때문', '학교에 상업의 역사가 없기 때문', '전원이 창업 경험자이기 때문'], answer: 0 },
-
-  // ===== スポーツ史・改革 =====
-  { text: '【スポーツ史】2007年の全国高校女子駅伝で千原台高校は何位？', ko: '【스포츠 역사】2007년 전국고교여자역전에서 치하라다이 고등학교는 몇 위?', options: ['2位', '1位', '5位', '10位'], optionsKo: ['2위', '1위', '5위', '10위'], answer: 0 },
-  { text: '【スポーツ史】2009年の全国高校女子駅伝で千原台高校は何位？', ko: '【스포츠 역사】2009년 전국고교여자역전에서 치하라다이 고등학교는 몇 위?', options: ['5位', '2位', '1位', '12位'], optionsKo: ['5위', '2위', '1위', '12위'], answer: 0 },
-  { text: '【学校改革】改革計画で示された千原台高校・全日制課程の1学年募集定員は？', ko: '【학교 개혁】개혁 계획에서 제시된 치하라다이 고등학교 전일제 과정의 1학년 모집 정원은?', options: ['160名', '120名', '200名', '240名'], optionsKo: ['160명', '120명', '200명', '240명'], answer: 0 }
+  // ===== 伝説のシーン・名言 =====
+  { text: '【伝説】「FAKER, WHAT WAS THAT?!」で有名な2013年の1対1で、Fakerが使っていたチャンピオンは？', ko: '【전설】“FAKER, WHAT WAS THAT?!”으로 유명한 2013년 1대1에서 Faker가 사용한 챔피언은?', options: ['Zed', 'LeBlanc', 'Ahri', 'Orianna'], optionsKo: ['제드', '르블랑', '아리', '오리아나'], answer: 0 },
+  { text: '【伝説】その2013年のZedミラーでFakerに倒されたKTのMidは？', ko: '【전설】그 2013년 제드 미러전에서 Faker에게 잡힌 KT 미드 라이너는?', options: ['Ryu', 'Score', 'Pawn', 'Dade'], optionsKo: ['Ryu', 'Score', 'Pawn', 'Dade'], answer: 0 },
+  { text: '【伝説】2017 Worldsの「Faker’s Shockwave will find them all!」でFakerが使っていたチャンピオンは？', ko: '【전설】2017 월즈 “Faker’s Shockwave will find them all!” 장면에서 Faker가 사용한 챔피언은?', options: ['Orianna', 'Syndra', 'Azir', 'Galio'], optionsKo: ['오리아나', '신드라', '아지르', '갈리오'], answer: 0 },
+  { text: '【名言】2023 Worlds準決勝ティザーの「All roads lead to me.」を言ったT1選手は？', ko: '【명언】2023 월즈 준결승 티저의 “All roads lead to me.”를 말한 T1 선수는?', options: ['Faker', 'Gumayusi', 'Keria', 'Oner'], optionsKo: ['Faker', 'Gumayusi', 'Keria', 'Oner'], answer: 0 },
+  { text: '【名言】「The fourth trophy is for my teammates.」が登場したWorldsは？', ko: '【명언】“The fourth trophy is for my teammates.”가 등장한 월즈는?', options: ['2023 Worlds', '2022 Worlds', '2024 Worlds', '2016 Worlds'], optionsKo: ['2023 월즈', '2022 월즈', '2024 월즈', '2016 월즈'], answer: 0 },
+  { text: '【名言】「The fifth trophy is for you.」とFakerが語った決勝ティザーのWorldsは？', ko: '【명언】Faker가 “The fifth trophy is for you.”라고 말한 결승 티저의 월즈는?', options: ['2024 Worlds', '2023 Worlds', '2025 Worlds', '2017 Worlds'], optionsKo: ['2024 월즈', '2023 월즈', '2025 월즈', '2017 월즈'], answer: 0 }
 ];
