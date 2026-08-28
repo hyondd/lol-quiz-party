@@ -6,7 +6,8 @@ let currentRoom = '';
 let isHost = false;
 let latestPlayers = [];
 let timerInterval = null;
-let secretWord = '';
+let myRole = null;
+let myRoleLabel = '';
 let hasConnectedOnce = false;
 
 function showScreen(id) {
@@ -42,26 +43,44 @@ function stopTimer() {
   clearInterval(timerInterval);
   timerInterval = null;
   $('timerBar').style.width = '0%';
+  $('timerText').textContent = '—';
 }
 
 function startTimer(seconds) {
   clearInterval(timerInterval);
+  const total = Math.max(1, Number(seconds) || 1);
   const start = performance.now();
-  $('timerText').textContent = seconds;
+  $('timerText').textContent = total;
   $('timerBar').style.width = '100%';
   timerInterval = setInterval(() => {
     const elapsed = (performance.now() - start) / 1000;
-    const remaining = Math.max(0, seconds - elapsed);
+    const remaining = Math.max(0, total - elapsed);
     $('timerText').textContent = Math.ceil(remaining);
-    $('timerBar').style.width = `${(remaining / seconds) * 100}%`;
+    $('timerBar').style.width = `${(remaining / total) * 100}%`;
     if (remaining <= 0) clearInterval(timerInterval);
   }, 100);
 }
 
-function setRound(round, total, stage) {
-  $('roundNum').textContent = round;
-  $('roundTotal').textContent = total;
-  $('stageLabel').textContent = stage;
+function clearGame() {
+  $('gameContent').innerHTML = '';
+  $('gameMessage').textContent = '';
+}
+
+function roleIcon(role) {
+  if (role === 'wolf') return '🐺';
+  if (role === 'seer') return '🔮';
+  return '🏠';
+}
+
+function showRoleBanner() {
+  const banner = $('roleBanner');
+  if (!myRole) {
+    banner.className = 'role-banner hidden';
+    banner.textContent = '';
+    return;
+  }
+  banner.className = `role-banner ${myRole}`;
+  banner.textContent = `${roleIcon(myRole)} あなたは「${myRoleLabel}」`;
 }
 
 function renderPlayers(players) {
@@ -90,34 +109,19 @@ function renderPlayers(players) {
       left.appendChild(pill);
     }
 
-    const score = document.createElement('span');
-    score.className = 'muted';
-    score.textContent = `${p.score} pt`;
-    row.append(left, score);
+    const ready = document.createElement('span');
+    ready.className = 'player-ready';
+    ready.textContent = '参加中';
+    row.append(left, ready);
     box.appendChild(row);
   });
 
-  renderMiniScore(latestPlayers);
-}
-
-function renderMiniScore(players) {
-  const box = $('miniScoreboard');
-  box.innerHTML = '';
-  (players || []).slice(0, 8).forEach((p, i) => {
-    const row = document.createElement('div');
-    row.className = 'score-row';
-    const name = document.createElement('span');
-    name.textContent = `${i + 1}. ${p.name}`;
-    const score = document.createElement('strong');
-    score.textContent = `${p.score}`;
-    row.append(name, score);
-    box.appendChild(row);
-  });
-}
-
-function clearGame() {
-  $('gameContent').innerHTML = '';
-  $('gameMessage').textContent = '';
+  if (isHost) {
+    $('startBtn').disabled = latestPlayers.length !== 4;
+    $('startBtn').textContent = latestPlayers.length === 4
+      ? 'ゲーム開始'
+      : `あと${4 - latestPlayers.length}人`;
+  }
 }
 
 function setLobby(code, host) {
@@ -131,41 +135,128 @@ function setLobby(code, host) {
   history.replaceState(null, '', `?room=${encodeURIComponent(code)}`);
 }
 
-function renderRoundStart(data) {
+function renderRoleInfo(data) {
+  myRole = data.role;
+  myRoleLabel = data.roleLabel;
+  showRoleBanner();
+}
+
+function renderSeerPhase(data) {
   showScreen('game');
   clearGame();
-  secretWord = '';
-  setRound(data.round, data.total, 'DISCUSSION');
-  $('progressText').textContent = '自分のお題を確認して、みんなで話そう';
+  $('stageLabel').textContent = 'NIGHT · ROLE';
+  $('progressText').textContent = data.isSeer ? '占う相手を1人選んでください' : '占い師が行動しています...';
+  showRoleBanner();
 
-  const wrap = document.createElement('div');
-  wrap.className = 'secret-wrap';
+  const card = document.createElement('div');
+  card.className = `phase-card role-main ${myRole || 'unknown'}`;
 
-  const label = document.createElement('div');
-  label.className = 'secret-label';
-  label.textContent = '🔒 あなたのお題';
+  const icon = document.createElement('div');
+  icon.className = 'big-role-icon';
+  icon.textContent = roleIcon(myRole || 'villager');
+  const title = document.createElement('h2');
+  title.textContent = myRoleLabel ? `あなたは「${myRoleLabel}」` : '役職を確認中...';
+  const desc = document.createElement('p');
+  desc.className = 'muted';
+  desc.textContent = myRole === 'wolf'
+    ? '人狼だとバレないように会話しよう。投票で処刑されなければ勝ち。'
+    : myRole === 'seer'
+      ? '今夜、1人だけ占えます。結果はあなただけが知ることができます。'
+      : '村人です。会話と投票から人狼を探そう。';
+  card.append(icon, title, desc);
+  $('gameContent').appendChild(card);
 
-  const word = document.createElement('div');
-  word.id = 'secretWord';
-  word.className = 'secret-word';
-  word.textContent = '受信中...';
+  if (data.isSeer) {
+    const section = document.createElement('div');
+    section.className = 'seer-box';
+    const heading = document.createElement('strong');
+    heading.textContent = '🔮 誰を占う？';
+    section.appendChild(heading);
 
-  const note = document.createElement('p');
-  note.className = 'muted secret-note';
-  note.textContent = 'このお題は他の人に見せないでね。自分が多数派か少数派かは誰にも分かりません。';
+    const grid = document.createElement('div');
+    grid.className = 'target-grid';
+    data.targets.forEach(p => {
+      const btn = document.createElement('button');
+      btn.className = 'target-card';
+      const avatar = document.createElement('span');
+      avatar.className = 'target-avatar';
+      avatar.textContent = p.name.slice(0, 1).toUpperCase();
+      const name = document.createElement('strong');
+      name.textContent = p.name;
+      btn.append(avatar, name);
+      btn.onclick = () => {
+        document.querySelectorAll('.target-card').forEach(b => b.disabled = true);
+        btn.classList.add('selected');
+        socket.emit('seer-check', { code: currentRoom, targetId: p.id });
+      };
+      grid.appendChild(btn);
+    });
+    section.appendChild(grid);
 
-  wrap.append(label, word, note);
-  $('gameContent').appendChild(wrap);
+    const result = document.createElement('div');
+    result.id = 'seerResult';
+    result.className = 'seer-result hidden';
+    section.appendChild(result);
+    $('gameContent').appendChild(section);
+  } else {
+    const wait = document.createElement('div');
+    wait.className = 'waiting-inline';
+    wait.textContent = '🌙 夜が明けるまで少し待ってね...';
+    $('gameContent').appendChild(wait);
+  }
 
-  const talk = document.createElement('div');
-  talk.className = 'talk-card';
-  talk.innerHTML = '<strong>💬 話し方のコツ</strong><span>お題を直接言わずに、特徴や思い出を少しずつ話そう。</span>';
-  $('gameContent').appendChild(talk);
+  startTimer(data.seconds);
+}
+
+function renderSeerResult(data) {
+  let result = $('seerResult');
+  if (!result) {
+    result = document.createElement('div');
+    result.id = 'seerResult';
+    result.className = 'seer-result';
+    $('gameContent').appendChild(result);
+  }
+  result.classList.remove('hidden');
+  result.classList.toggle('danger', data.isWolf);
+  result.textContent = data.isWolf
+    ? `🐺 ${data.targetName} は「人狼」です。`
+    : `✅ ${data.targetName} は「人狼ではありません」。`;
+  $('gameMessage').textContent = 'この結果をどう使うかはあなた次第。もうすぐ話し合いが始まります。';
+}
+
+function renderDiscussion(data) {
+  showScreen('game');
+  clearGame();
+  $('stageLabel').textContent = 'DAY · DISCUSSION';
+  $('progressText').textContent = '誰が人狼か、4人で話し合おう';
+  showRoleBanner();
+
+  const card = document.createElement('div');
+  card.className = 'discussion-card';
+  const icon = document.createElement('div');
+  icon.className = 'discussion-icon';
+  icon.textContent = '☀️';
+  const h2 = document.createElement('h2');
+  h2.textContent = '話し合いスタート';
+  const p = document.createElement('p');
+  p.className = 'muted';
+  p.textContent = '人狼は嘘をついてOK。占い師は結果を言っても、隠してもOK。村人は発言の矛盾を探そう。';
+  card.append(icon, h2, p);
+
+  const chips = document.createElement('div');
+  chips.className = 'discussion-players';
+  (data.players || latestPlayers).forEach(player => {
+    const chip = document.createElement('span');
+    chip.textContent = player.name;
+    chips.appendChild(chip);
+  });
+  card.appendChild(chips);
+  $('gameContent').appendChild(card);
 
   if (isHost) {
     const force = document.createElement('button');
     force.className = 'btn secondary vote-now';
-    force.textContent = 'みんな話し終わった → 投票へ';
+    force.textContent = '話し合い終了 → 投票へ';
     force.onclick = () => {
       force.disabled = true;
       socket.emit('force-vote', { code: currentRoom });
@@ -173,30 +264,34 @@ function renderRoundStart(data) {
     $('gameContent').appendChild(force);
   }
 
+  $('gameMessage').textContent = '自分の役職は上に表示されています。他の人には見えていません。';
   startTimer(data.seconds);
-  renderMiniScore(data.players || latestPlayers);
-}
-
-function renderSecretWord(data) {
-  secretWord = data.word || '';
-  const el = $('secretWord');
-  if (el) el.textContent = secretWord || '？？？';
 }
 
 function renderVoting(data) {
-  stopTimer();
+  showScreen('game');
   clearGame();
-  setRound(data.round, data.total, 'VOTE');
+  $('stageLabel').textContent = data.revote ? 'REVOTE' : 'VOTE';
   $('progressText').textContent = `0/${data.players.length}人 投票済み`;
+  showRoleBanner();
 
   const title = document.createElement('div');
   title.className = 'vote-title';
-  title.innerHTML = '<span>🐺</span><strong>誰が少数派だと思う？</strong><small>自分以外の1人に投票</small>';
+  const icon = document.createElement('span');
+  icon.textContent = data.revote ? '🔁' : '🗳️';
+  const textWrap = document.createElement('div');
+  const strong = document.createElement('strong');
+  strong.textContent = data.revote ? '同票になった人だけで再投票' : '人狼だと思う人に投票';
+  const small = document.createElement('small');
+  small.textContent = '自分には投票できません。投票後の変更もできません。';
+  textWrap.append(strong, small);
+  title.append(icon, textWrap);
   $('gameContent').appendChild(title);
 
+  const candidates = data.candidates || data.players;
   const grid = document.createElement('div');
   grid.className = 'vote-grid';
-  data.players.forEach(p => {
+  candidates.forEach(p => {
     const btn = document.createElement('button');
     btn.className = 'vote-card';
     btn.disabled = p.id === socket.id;
@@ -207,7 +302,7 @@ function renderVoting(data) {
     const name = document.createElement('strong');
     name.textContent = p.name;
     const hint = document.createElement('small');
-    hint.textContent = p.id === socket.id ? 'あなた' : 'この人に投票';
+    hint.textContent = p.id === socket.id ? 'あなた自身' : 'この人に投票';
     btn.append(avatar, name, hint);
 
     if (p.id !== socket.id) {
@@ -220,106 +315,99 @@ function renderVoting(data) {
     grid.appendChild(btn);
   });
   $('gameContent').appendChild(grid);
-  $('gameMessage').textContent = '投票後は変更できません。';
   startTimer(data.seconds);
 }
 
-function renderRoundResult(data) {
+function renderTie(data) {
   stopTimer();
   clearGame();
-  setRound(data.round, data.total, 'REVEAL');
-  $('progressText').textContent = data.caught ? '少数派を発見！' : '少数派が逃げ切った！';
+  $('stageLabel').textContent = 'TIE';
+  $('progressText').textContent = '最多票が同数！';
+  showRoleBanner();
 
-  const hero = document.createElement('div');
-  hero.className = `reveal-hero ${data.caught ? 'caught' : 'escaped'}`;
+  const box = document.createElement('div');
+  box.className = 'tie-card';
   const icon = document.createElement('div');
-  icon.className = 'reveal-icon';
-  icon.textContent = data.caught ? '🎯' : '🐺';
+  icon.textContent = '⚖️';
+  icon.className = 'tie-icon';
   const title = document.createElement('h2');
-  title.textContent = data.caught ? '多数派の勝ち！' : '少数派の勝ち！';
-  const who = document.createElement('p');
-  who.innerHTML = `少数派は <strong>${escapeHtml(data.minorityName)}</strong>`;
-  hero.append(icon, title, who);
-  $('gameContent').appendChild(hero);
-
-  const words = document.createElement('div');
-  words.className = 'word-reveal-grid';
-  const majority = document.createElement('div');
-  majority.className = 'word-reveal majority';
-  majority.innerHTML = `<small>多数派のお題</small><strong>${escapeHtml(data.majorityWord)}</strong>`;
-  const minority = document.createElement('div');
-  minority.className = 'word-reveal minority';
-  minority.innerHTML = `<small>少数派のお題</small><strong>${escapeHtml(data.minorityWord)}</strong>`;
-  words.append(majority, minority);
-  $('gameContent').appendChild(words);
-
-  const list = document.createElement('div');
-  list.className = 'vote-result-list';
-  data.voteResults.forEach((r, i) => {
-    const row = document.createElement('div');
-    row.className = `vote-result-row ${r.isMinority ? 'minority-row' : ''}`;
-    const left = document.createElement('div');
-    const name = document.createElement('strong');
-    name.textContent = `${r.isMinority ? '🐺 ' : ''}${r.name}`;
-    const voters = document.createElement('small');
-    voters.textContent = r.voters.length ? `← ${r.voters.join('・')}` : '投票なし';
-    left.append(name, voters);
-    const count = document.createElement('span');
-    count.textContent = `${r.votes}票`;
-    row.append(left, count);
-    list.appendChild(row);
-  });
-  $('gameContent').appendChild(list);
-
-  $('gameMessage').textContent = data.message;
-  renderPlayers(data.players);
+  title.textContent = '再投票！';
+  const names = document.createElement('p');
+  names.textContent = `${(data.candidates || []).map(p => p.name).join('・')} が同票です。`;
+  const note = document.createElement('small');
+  note.textContent = 'もう一度同票になった場合は、人狼の逃げ切りになります。';
+  box.append(icon, title, names, note);
+  $('gameContent').appendChild(box);
+  $('gameMessage').textContent = '再投票を準備中...';
 }
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
-
-function renderFinal(players) {
+function renderResult(data) {
   stopTimer();
-  const sorted = [...(players || [])].sort((a, b) => b.score - a.score);
-  $('podium').innerHTML = '';
-  const top3 = sorted.slice(0, 3);
-  const displayOrder = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
+  myRole = null;
+  myRoleLabel = '';
+  showScreen('result');
 
-  displayOrder.forEach(p => {
-    const rankNum = sorted.findIndex(x => x.id === p.id) + 1;
+  const heroBox = $('resultHero');
+  heroBox.innerHTML = '';
+  const hero = document.createElement('div');
+  hero.className = `final-hero ${data.villageWin ? 'village-win' : 'wolf-win'}`;
+  const icon = document.createElement('div');
+  icon.className = 'final-icon';
+  icon.textContent = data.villageWin ? '🏘️' : '🐺';
+  const title = document.createElement('h2');
+  title.textContent = data.villageWin ? '村人陣営の勝利！' : '人狼の勝利！';
+  const msg = document.createElement('p');
+  msg.textContent = data.message;
+  const wolf = document.createElement('strong');
+  wolf.className = 'wolf-answer';
+  wolf.textContent = `人狼は ${data.wolfName}`;
+  hero.append(icon, title, msg, wolf);
+  heroBox.appendChild(hero);
+
+  const roleBox = $('roleReveal');
+  roleBox.innerHTML = '';
+  (data.roles || []).forEach(p => {
     const card = document.createElement('div');
-    card.className = `podium-card ${rankNum === 1 ? 'first' : ''}`;
-    const medal = document.createElement('div');
-    medal.className = 'rank';
-    medal.textContent = rankNum === 1 ? '🥇' : rankNum === 2 ? '🥈' : '🥉';
+    card.className = `role-reveal-card ${p.role}`;
+    const icon = document.createElement('span');
+    icon.textContent = roleIcon(p.role);
+    const body = document.createElement('div');
     const name = document.createElement('strong');
     name.textContent = p.name;
-    const score = document.createElement('span');
-    score.textContent = `${p.score} pt`;
-    card.append(medal, name, score);
-    $('podium').appendChild(card);
+    const role = document.createElement('small');
+    role.textContent = p.roleLabel;
+    body.append(name, role);
+    card.append(icon, body);
+    roleBox.appendChild(card);
   });
 
-  $('finalScoreboard').innerHTML = '';
-  sorted.forEach((p, i) => {
-    const row = document.createElement('div');
-    row.className = 'score-row';
-    const name = document.createElement('span');
-    name.textContent = `${i + 1}位 · ${p.name}`;
-    const score = document.createElement('strong');
-    score.textContent = `${p.score} pt`;
-    row.append(name, score);
-    $('finalScoreboard').appendChild(row);
+  const historyBox = $('voteHistory');
+  historyBox.innerHTML = '';
+  (data.voteHistory || []).forEach(round => {
+    const section = document.createElement('div');
+    section.className = 'vote-history-card';
+    const h = document.createElement('strong');
+    h.textContent = round.revote ? '再投票' : '1回目の投票';
+    section.appendChild(h);
+
+    (round.results || []).forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'history-row';
+      const left = document.createElement('div');
+      const name = document.createElement('span');
+      name.textContent = r.name;
+      const voters = document.createElement('small');
+      voters.textContent = r.voters?.length ? `← ${r.voters.join('・')}` : '投票なし';
+      left.append(name, voters);
+      const votes = document.createElement('strong');
+      votes.textContent = `${r.votes}票`;
+      row.append(left, votes);
+      section.appendChild(row);
+    });
+    historyBox.appendChild(section);
   });
 
   $('restartBtn').classList.toggle('hidden', !isHost);
-  showScreen('result');
 }
 
 // Home
@@ -355,27 +443,25 @@ $('copyBtn').onclick = async () => {
   }
 };
 
-function emitSettings() {
+$('discussionSelect').onchange = () => {
   if (!isHost || !currentRoom) return;
   socket.emit('update-settings', {
     code: currentRoom,
-    rounds: Number($('roundsSelect').value),
     discussionSeconds: Number($('discussionSelect').value)
   });
-}
+};
 
-$('roundsSelect').onchange = emitSettings;
-$('discussionSelect').onchange = emitSettings;
 $('startBtn').onclick = () => socket.emit('start-game', { code: currentRoom });
 $('restartBtn').onclick = () => socket.emit('restart-lobby', { code: currentRoom });
 
-// Socket events
+// Connection
 socket.on('connect', () => {
   if (hasConnectedOnce) toast('再接続しました！');
   hasConnectedOnce = true;
 });
 socket.on('disconnect', () => toast('通信が切れました。再接続中...'));
 
+// Room
 socket.on('room-created', ({ code, isHost: host }) => setLobby(code, host));
 socket.on('room-joined', ({ code, isHost: host }) => setLobby(code, host));
 socket.on('join-error', msg => $('homeError').textContent = msg);
@@ -386,47 +472,54 @@ socket.on('lobby-state', data => {
   $('roomCodeText').textContent = data.code;
   $('shareLink').value = shareUrl(data.code);
   renderPlayers(data.players);
-  if (isHost) {
-    $('roundsSelect').value = String(data.rounds);
-    $('discussionSelect').value = String(data.discussionSeconds);
-  }
+  if (isHost) $('discussionSelect').value = String(data.discussionSeconds || 90);
 });
 
-socket.on('game-started', ({ total }) => {
+// Game
+socket.on('game-started', ({ players }) => {
+  latestPlayers = players || latestPlayers;
   showScreen('game');
   clearGame();
-  setRound('—', total, 'START');
-  $('progressText').textContent = 'お題を配っています...';
-  $('gameMessage').textContent = '他の人の画面は見ないでね！';
+  myRole = null;
+  myRoleLabel = '';
+  showRoleBanner();
+  $('stageLabel').textContent = 'START';
+  $('progressText').textContent = '役職を配っています...';
+  $('gameMessage').textContent = '他の人の画面を見ないでね！';
   stopTimer();
 });
 
-socket.on('round-start', renderRoundStart);
-socket.on('secret-word', renderSecretWord);
+socket.on('role-info', renderRoleInfo);
+socket.on('seer-phase', renderSeerPhase);
+socket.on('seer-result', renderSeerResult);
+socket.on('discussion-start', renderDiscussion);
 socket.on('voting-start', renderVoting);
-socket.on('round-result', renderRoundResult);
+socket.on('vote-tie', renderTie);
 socket.on('vote-progress', ({ voted, total }) => {
   $('progressText').textContent = `${voted}/${total}人 投票済み`;
 });
 socket.on('vote-locked', () => {
-  $('gameMessage').textContent = '投票しました！みんなの投票を待っています...';
+  $('gameMessage').textContent = '投票しました。全員の投票を待っています...';
 });
-socket.on('round-cancelled', msg => {
-  stopTimer();
-  clearGame();
-  const card = document.createElement('div');
-  card.className = 'empty-card';
-  card.textContent = msg;
-  $('gameContent').appendChild(card);
-  $('progressText').textContent = 'ラウンドを再準備中...';
-});
+socket.on('game-result', renderResult);
+
 socket.on('game-aborted', msg => {
   stopTimer();
+  myRole = null;
+  myRoleLabel = '';
+  showRoleBanner();
   showScreen('lobby');
   toast(msg);
 });
-socket.on('game-finished', ({ players }) => renderFinal(players));
-socket.on('back-to-lobby', () => showScreen('lobby'));
+
+socket.on('back-to-lobby', () => {
+  stopTimer();
+  myRole = null;
+  myRoleLabel = '';
+  showRoleBanner();
+  showScreen('lobby');
+});
+
 socket.on('room-closed', msg => {
   stopTimer();
   $('closedMessage').textContent = msg;
