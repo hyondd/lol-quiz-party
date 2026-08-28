@@ -15,7 +15,7 @@ const rooms = new Map();
 const ROOM_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_PLAYERS = 40;
 const MAX_QUESTIONS = 100;
-const DEFAULT_TITLE = 'T1 クイズパーティー';
+const DEFAULT_TITLE = '原神 クイズパーティー';
 
 function makeCode() {
   for (let tries = 0; tries < 100; tries++) {
@@ -339,4 +339,4 @@ io.on('connection', socket => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`LoL Quiz Party running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Genshin Quiz Party running on port ${PORT}`));
