@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0a0d18" />
-  <title>ワードウルフ パーティー</title>
+  <meta name="theme-color" content="#080b12" />
+  <title>4人ミニ人狼</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -15,20 +15,20 @@
     <header class="brand">
       <div class="logo">🐺</div>
       <div>
-        <h1>ワードウルフ パーティー</h1>
-        <p>1人だけ違うお題。正体を隠して逃げ切れ。</p>
+        <h1>4人ミニ人狼</h1>
+        <p>人狼1・占い師1・村人2。4人だけの心理戦。</p>
       </div>
     </header>
 
     <section id="home" class="panel hero">
-      <div class="eyebrow">SECRET IDENTITY GAME</div>
-      <h2>同じようで、<br><span>1人だけ違う。</span></h2>
-      <p class="muted lead">全員に似たお題が配られます。ただし1人だけ別のお題。会話から少数派を見つけよう。</p>
+      <div class="eyebrow">FOUR PLAYER WEREWOLF</div>
+      <h2>4人の中に、<br><span>人狼が1人。</span></h2>
+      <p class="muted lead">役職を確認して、占い・話し合い・投票。人狼を処刑できれば村人陣営の勝ち。</p>
 
       <div class="rule-strip">
-        <div><strong>①</strong><span>自分のお題を見る</span></div>
-        <div><strong>②</strong><span>みんなで話す</span></div>
-        <div><strong>③</strong><span>怪しい人に投票</span></div>
+        <div><strong>🌙</strong><span>役職・占い</span></div>
+        <div><strong>💬</strong><span>話し合い</span></div>
+        <div><strong>🗳️</strong><span>投票・再投票</span></div>
       </div>
 
       <div class="form-grid">
@@ -51,8 +51,8 @@
       <div class="lobby-top">
         <div>
           <div class="eyebrow">ROOM <span id="roomCodeText"></span></div>
-          <h2>正体隠匿ミニゲーム</h2>
-          <p class="muted"><span id="playerCount">1</span>人参加中 · 3人以上でスタート</p>
+          <h2>4人ミニ人狼</h2>
+          <p class="muted"><span id="playerCount">1</span>/4人参加中 · 4人ちょうどで開始</p>
         </div>
         <div class="share-box">
           <input id="shareLink" readonly />
@@ -68,35 +68,32 @@
 
         <div id="hostTools" class="host-card hidden">
           <h3>ゲーム設定</h3>
-          <div class="setting-grid">
-            <label>ラウンド数
-              <select id="roundsSelect">
-                <option value="3">3ラウンド</option>
-                <option value="5" selected>5ラウンド</option>
-                <option value="8">8ラウンド</option>
-                <option value="10">10ラウンド</option>
-              </select>
-            </label>
-            <label>話し合い時間
-              <select id="discussionSelect">
-                <option value="30">30秒</option>
-                <option value="45">45秒</option>
-                <option value="60" selected>60秒</option>
-                <option value="90">90秒</option>
-              </select>
-            </label>
+          <label>話し合い時間
+            <select id="discussionSelect">
+              <option value="60">60秒</option>
+              <option value="90" selected>90秒</option>
+              <option value="120">120秒</option>
+              <option value="180">180秒</option>
+            </select>
+          </label>
+
+          <div class="role-grid mini">
+            <div class="role-chip wolf"><span>🐺</span><strong>人狼 ×1</strong></div>
+            <div class="role-chip seer"><span>🔮</span><strong>占い師 ×1</strong></div>
+            <div class="role-chip villager"><span>🏠</span><strong>村人 ×2</strong></div>
           </div>
+
           <div class="howto-card">
-            <strong>ルール</strong>
-            <p>多数派は少数派を見つける。少数派は自分だけ違うとバレないように会話する。少数派本人にも、自分が少数派かどうかは表示されません。</p>
+            <strong>4人用ルール</strong>
+            <p>夜の襲撃はなし。占い師は最初に1人だけ占えます。話し合い後に全員投票し、最多票が同数なら1回だけ再投票。それでも同票なら人狼の勝ちです。</p>
           </div>
-          <button id="startBtn" class="btn primary wide">ゲーム開始</button>
+          <button id="startBtn" class="btn primary wide">4人そろったらゲーム開始</button>
         </div>
 
         <div id="guestWaiting" class="waiting-card">
           <div class="pulse"></div>
           <h3>ホストを待っています...</h3>
-          <p class="muted">3人以上集まったらゲーム開始！</p>
+          <p class="muted">4人そろったらゲーム開始！</p>
         </div>
       </div>
     </section>
@@ -104,29 +101,25 @@
     <section id="game" class="panel hidden game-panel">
       <div class="game-top">
         <div>
-          <div class="eyebrow"><span id="stageLabel">ROUND</span> · <span id="roundNum">1</span>/<span id="roundTotal">5</span></div>
-          <div id="progressText" class="muted small-text">準備中...</div>
+          <div id="stageLabel" class="eyebrow">ROLE</div>
+          <div id="progressText" class="muted small-text">役職を確認中...</div>
         </div>
-        <div class="timer-wrap">
-          <div id="timerText" class="timer-text">60</div>
+        <div id="timerWrap" class="timer-wrap">
+          <div id="timerText" class="timer-text">20</div>
           <div class="timer-bar"><div id="timerBar" class="timer-fill"></div></div>
         </div>
       </div>
 
+      <div id="roleBanner" class="role-banner hidden"></div>
       <div id="gameContent"></div>
       <div id="gameMessage" class="game-message"></div>
-
-      <div class="score-mini">
-        <h3>スコア</h3>
-        <div id="miniScoreboard" class="mini-scoreboard"></div>
-      </div>
     </section>
 
     <section id="result" class="panel hidden result-panel">
-      <div class="eyebrow">FINAL RESULT</div>
-      <h2>ゲーム終了！</h2>
-      <div id="podium" class="podium"></div>
-      <div id="finalScoreboard" class="final-scoreboard"></div>
+      <div class="eyebrow">GAME RESULT</div>
+      <div id="resultHero"></div>
+      <div id="roleReveal" class="role-reveal-grid"></div>
+      <div id="voteHistory" class="vote-history"></div>
       <button id="restartBtn" class="btn primary hidden">もう一度遊ぶ</button>
     </section>
 
