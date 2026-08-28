@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
+const SCENES = require('./questions');
 
 const app = express();
 const server = http.createServer(app);
@@ -19,7 +20,8 @@ app.get('/health', (_, res) => res.json({ ok: true }));
 const rooms = new Map();
 const pendingDisconnects = new Map();
 const ROOM_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const MAX_PLAYERS = 4;
+const MAX_PLAYERS = 12;
+const MIN_PLAYERS = 3;
 const DISCONNECT_GRACE_MS = 30000;
 
 function makeCode() {
@@ -35,6 +37,10 @@ function safeName(name) {
   return String(name || '').trim().slice(0, 18) || 'プレイヤー';
 }
 
+function safeCaption(text) {
+  return String(text || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+}
+
 function shuffle(arr) {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
@@ -45,21 +51,24 @@ function shuffle(arr) {
 }
 
 function publicPlayers(room) {
-  return [...room.players.values()].map(p => ({
-    id: p.id,
-    name: p.name,
-    isHost: p.id === room.hostId
-  }));
+  return [...room.players.values()]
+    .map(p => ({ id: p.id, name: p.name, score: p.score, isHost: p.id === room.hostId }))
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ja'));
 }
 
-function emitLobby(room) {
-  io.to(room.code).emit('lobby-state', {
+function lobbyState(room) {
+  return {
     code: room.code,
     status: room.status,
     phase: room.phase,
-    discussionSeconds: room.discussionSeconds,
+    rounds: room.rounds,
+    writingSeconds: room.writingSeconds,
     players: publicPlayers(room)
-  });
+  };
+}
+
+function emitLobby(room) {
+  io.to(room.code).emit('lobby-state', lobbyState(room));
 }
 
 function clearTimer(room) {
@@ -68,238 +77,244 @@ function clearTimer(room) {
   room.phaseEndsAt = 0;
 }
 
-function secondsLeft(room, fallback = 1) {
-  if (!room.phaseEndsAt) return fallback;
-  return Math.max(1, Math.ceil((room.phaseEndsAt - Date.now()) / 1000));
-}
-
 function setPhaseTimer(room, seconds, fn) {
   clearTimer(room);
   room.phaseEndsAt = Date.now() + seconds * 1000;
   room.timer = setTimeout(fn, seconds * 1000);
 }
 
-function playerRoleLabel(role) {
-  if (role === 'wolf') return '人狼';
-  if (role === 'seer') return '占い師';
-  return '村人';
+function secondsLeft(room, fallback = 1) {
+  if (!room.phaseEndsAt) return fallback;
+  return Math.max(1, Math.ceil((room.phaseEndsAt - Date.now()) / 1000));
 }
 
-function sendRole(room, player) {
-  io.to(player.id).emit('role-info', {
-    role: player.role,
-    roleLabel: playerRoleLabel(player.role),
-    description: player.role === 'wolf'
-      ? '正体を隠して、最後の投票で処刑されなければ勝ち。'
-      : player.role === 'seer'
-        ? 'ゲーム開始時に1人を占い、その人が人狼かどうかを知ることができます。'
-        : '会話と投票から人狼を見つけよう。'
-  });
+function roundProgress(room) {
+  return { round: room.roundIndex + 1, total: room.playScenes.length };
 }
 
-function seerTargets(room, seerId) {
-  return publicPlayers(room)
-    .filter(p => p.id !== seerId)
-    .map(p => ({ id: p.id, name: p.name }));
+function currentScene(room) {
+  return room.playScenes[room.roundIndex] || { art: '？', detail: '' };
 }
 
-function emitPrivateSync(room, socket) {
-  const player = room.players.get(socket.id);
-  if (!player) return;
-  sendRole(room, player);
-
-  if (room.phase === 'seer') {
-    socket.emit('seer-phase', {
-      isSeer: player.role === 'seer',
-      targets: player.role === 'seer' ? seerTargets(room, player.id) : [],
-      seconds: secondsLeft(room, 20)
-    });
-    if (player.role === 'seer' && room.seerResult) {
-      socket.emit('seer-result', room.seerResult);
-    }
-  } else if (room.phase === 'discussion') {
-    socket.emit('discussion-start', {
-      seconds: secondsLeft(room, room.discussionSeconds),
-      players: publicPlayers(room)
-    });
-  } else if (room.phase === 'voting' || room.phase === 'revoting') {
-    const candidates = publicPlayers(room).filter(p => room.voteCandidates.includes(p.id));
-    socket.emit('voting-start', {
-      seconds: secondsLeft(room, 25),
-      players: publicPlayers(room),
-      candidates,
-      revote: room.phase === 'revoting'
-    });
-    socket.emit('vote-progress', { voted: room.votes.size, total: room.players.size });
-  }
-}
-
-function resetGameState(room) {
-  clearTimer(room);
-  room.phase = 'lobby';
-  room.wolfId = null;
-  room.seerId = null;
-  room.seerResult = null;
-  room.votes = new Map();
-  room.voteCandidates = [];
-  room.voteHistory = [];
-  for (const p of room.players.values()) p.role = null;
+function eligibleVoters(room) {
+  return [...room.players.keys()].filter(playerId =>
+    room.entries.some(entry => entry.authorId !== playerId)
+  );
 }
 
 function abortToLobby(room, message) {
-  resetGameState(room);
+  clearTimer(room);
   room.status = 'lobby';
+  room.phase = 'lobby';
+  room.playScenes = [];
+  room.roundIndex = 0;
+  room.submissions = new Map();
+  room.entries = [];
+  room.votes = new Map();
+  room.lastResult = null;
   io.to(room.code).emit('game-aborted', message);
   emitLobby(room);
 }
 
-function startGame(room) {
-  const roles = shuffle(['wolf', 'seer', 'villager', 'villager']);
-  const players = [...room.players.values()];
+function finishGame(room) {
+  clearTimer(room);
+  room.status = 'finished';
+  room.phase = 'finished';
+  io.to(room.code).emit('game-finished', { players: publicPlayers(room) });
+  emitLobby(room);
+}
 
-  players.forEach((p, i) => {
-    p.role = roles[i];
-    if (p.role === 'wolf') room.wolfId = p.id;
-    if (p.role === 'seer') room.seerId = p.id;
-  });
+function startRound(room) {
+  if (!rooms.has(room.code) || room.status !== 'playing') return;
+  if (room.players.size < MIN_PLAYERS) {
+    return abortToLobby(room, '3人未満になったためゲームを中断しました。');
+  }
 
-  room.status = 'playing';
-  room.phase = 'seer';
-  room.seerResult = null;
+  room.phase = 'writing';
+  room.submissions = new Map();
+  room.entries = [];
   room.votes = new Map();
-  room.voteCandidates = [];
-  room.voteHistory = [];
+  room.lastResult = null;
 
-  io.to(room.code).emit('game-started', { players: publicPlayers(room) });
-  players.forEach(p => sendRole(room, p));
+  io.to(room.code).emit('round-start', {
+    ...roundProgress(room),
+    scene: currentScene(room),
+    seconds: room.writingSeconds
+  });
+  io.to(room.code).emit('answer-progress', { done: 0, total: room.players.size });
 
-  for (const p of players) {
-    io.to(p.id).emit('seer-phase', {
-      isSeer: p.role === 'seer',
-      targets: p.role === 'seer' ? seerTargets(room, p.id) : [],
+  setPhaseTimer(room, room.writingSeconds, () => beginVoting(room));
+}
+
+function beginVoting(room) {
+  if (!rooms.has(room.code) || room.status !== 'playing' || room.phase !== 'writing') return;
+  clearTimer(room);
+
+  const entries = [];
+  for (const [authorId, text] of room.submissions.entries()) {
+    if (!room.players.has(authorId) || !text) continue;
+    entries.push({
+      id: Math.random().toString(36).slice(2, 11),
+      authorId,
+      text
+    });
+  }
+  room.entries = shuffle(entries);
+  room.votes = new Map();
+
+  if (room.entries.length < 2) {
+    room.phase = 'result';
+    const result = {
+      ...roundProgress(room),
+      scene: currentScene(room),
+      entries: room.entries.map(entry => ({
+        id: entry.id,
+        text: entry.text,
+        authorName: room.players.get(entry.authorId)?.name || '退出した人',
+        votes: 0,
+        winner: false
+      })),
+      players: publicPlayers(room),
+      message: '回答が2つ未満だったので、このラウンドはノーコンテスト。'
+    };
+    room.lastResult = result;
+    io.to(room.code).emit('round-result', result);
+    return scheduleNextRound(room, 4000);
+  }
+
+  room.phase = 'voting';
+  for (const player of room.players.values()) {
+    io.to(player.id).emit('voting-start', {
+      ...roundProgress(room),
+      scene: currentScene(room),
+      submissions: room.entries.map(entry => ({
+        id: entry.id,
+        text: entry.text,
+        mine: entry.authorId === player.id
+      })),
       seconds: 20
     });
   }
 
-  setPhaseTimer(room, 20, () => beginDiscussion(room));
-}
+  const eligible = eligibleVoters(room);
+  io.to(room.code).emit('vote-progress', { voted: 0, total: eligible.length });
 
-function beginDiscussion(room) {
-  if (!rooms.has(room.code) || room.status !== 'playing') return;
-  if (!['seer', 'starting'].includes(room.phase)) return;
-
-  room.phase = 'discussion';
-  io.to(room.code).emit('discussion-start', {
-    seconds: room.discussionSeconds,
-    players: publicPlayers(room)
-  });
-  setPhaseTimer(room, room.discussionSeconds, () => beginVoting(room, false));
-}
-
-function beginVoting(room, revote = false, candidates = null) {
-  if (!rooms.has(room.code) || room.status !== 'playing') return;
-  clearTimer(room);
-  room.phase = revote ? 'revoting' : 'voting';
-  room.votes = new Map();
-  room.voteCandidates = candidates && candidates.length
-    ? [...candidates]
-    : [...room.players.keys()];
-
-  const candidatePlayers = publicPlayers(room).filter(p => room.voteCandidates.includes(p.id));
-  io.to(room.code).emit('voting-start', {
-    seconds: 25,
-    players: publicPlayers(room),
-    candidates: candidatePlayers,
-    revote
-  });
-  io.to(room.code).emit('vote-progress', { voted: 0, total: room.players.size });
-  setPhaseTimer(room, 25, () => resolveVote(room));
-}
-
-function resolveVote(room) {
-  if (!rooms.has(room.code) || room.status !== 'playing' || !['voting', 'revoting'].includes(room.phase)) return;
-  const wasRevote = room.phase === 'revoting';
-  clearTimer(room);
-
-  const counts = new Map(room.voteCandidates.map(id => [id, 0]));
-  const votersByTarget = new Map(room.voteCandidates.map(id => [id, []]));
-
-  for (const [voterId, targetId] of room.votes.entries()) {
-    if (!room.players.has(voterId) || !counts.has(targetId)) continue;
-    counts.set(targetId, counts.get(targetId) + 1);
-    votersByTarget.get(targetId).push(room.players.get(voterId).name);
+  if (eligible.length === 0) {
+    room.phase = 'result';
+    return revealRound(room);
   }
 
-  const maxVotes = Math.max(0, ...counts.values());
-  const topIds = maxVotes > 0
-    ? [...counts.entries()].filter(([, count]) => count === maxVotes).map(([id]) => id)
+  setPhaseTimer(room, 20, () => revealRound(room));
+}
+
+function revealRound(room) {
+  if (!rooms.has(room.code) || room.status !== 'playing') return;
+  if (!['voting', 'result'].includes(room.phase)) return;
+  clearTimer(room);
+  room.phase = 'result';
+
+  const voteCounts = new Map(room.entries.map(entry => [entry.id, 0]));
+  for (const submissionId of room.votes.values()) {
+    if (voteCounts.has(submissionId)) {
+      voteCounts.set(submissionId, voteCounts.get(submissionId) + 1);
+    }
+  }
+
+  const maxVotes = Math.max(0, ...voteCounts.values());
+  const winnerIds = maxVotes > 0
+    ? [...voteCounts.entries()].filter(([, count]) => count === maxVotes).map(([id]) => id)
     : [];
 
-  room.voteHistory.push({
-    revote: wasRevote,
-    results: room.voteCandidates.map(id => ({
-      id,
-      name: room.players.get(id)?.name || '退出した人',
-      votes: counts.get(id) || 0,
-      voters: votersByTarget.get(id) || []
-    }))
-  });
-
-  if (!wasRevote && topIds.length > 1) {
-    room.phase = 'tie';
-    io.to(room.code).emit('vote-tie', {
-      candidates: publicPlayers(room).filter(p => topIds.includes(p.id))
-    });
-    room.timer = setTimeout(() => {
-      if (rooms.has(room.code) && room.status === 'playing' && room.phase === 'tie') {
-        beginVoting(room, true, topIds);
-      }
-    }, 2200);
-    return;
+  for (const entry of room.entries) {
+    const author = room.players.get(entry.authorId);
+    if (!author) continue;
+    const votes = voteCounts.get(entry.id) || 0;
+    author.score += votes * 200;
+    if (winnerIds.includes(entry.id)) author.score += 500;
   }
 
-  const executedId = topIds.length === 1 ? topIds[0] : null;
-  const villageWin = executedId === room.wolfId;
-  finishGame(room, {
-    villageWin,
-    executedId,
-    finalTie: wasRevote && topIds.length !== 1,
-    noVotes: topIds.length === 0
-  });
+  const entries = room.entries
+    .map(entry => ({
+      id: entry.id,
+      text: entry.text,
+      authorName: room.players.get(entry.authorId)?.name || '退出した人',
+      votes: voteCounts.get(entry.id) || 0,
+      winner: winnerIds.includes(entry.id)
+    }))
+    .sort((a, b) => b.votes - a.votes || a.authorName.localeCompare(b.authorName, 'ja'));
+
+  const result = {
+    ...roundProgress(room),
+    scene: currentScene(room),
+    entries,
+    players: publicPlayers(room),
+    message: winnerIds.length > 1
+      ? '同票優勝！1票200pt＋優勝ボーナス500pt'
+      : winnerIds.length === 1
+        ? '最多得票が今ラウンドの優勝！1票200pt＋優勝ボーナス500pt'
+        : '今回は投票なし。次のお題へ！'
+  };
+
+  room.lastResult = result;
+  io.to(room.code).emit('round-result', result);
+  scheduleNextRound(room, 6500);
 }
 
-function finishGame(room, outcome) {
+function scheduleNextRound(room, delay) {
   clearTimer(room);
-  room.status = 'finished';
-  room.phase = 'finished';
-
-  const roles = [...room.players.values()].map(p => ({
-    id: p.id,
-    name: p.name,
-    role: p.role,
-    roleLabel: playerRoleLabel(p.role)
-  }));
-
-  io.to(room.code).emit('game-result', {
-    ...outcome,
-    wolfId: room.wolfId,
-    wolfName: room.players.get(room.wolfId)?.name || '不明',
-    roles,
-    voteHistory: room.voteHistory,
-    message: outcome.villageWin
-      ? '村人陣営の勝利！人狼を見破った！'
-      : outcome.finalTie
-        ? '再投票も同票！人狼が逃げ切った！'
-        : outcome.noVotes
-          ? '投票が成立せず、人狼が逃げ切った！'
-          : '人狼の勝利！最後まで正体を隠し切った！'
-  });
-  emitLobby(room);
+  room.phaseEndsAt = Date.now() + delay;
+  room.timer = setTimeout(() => {
+    if (!rooms.has(room.code) || room.status !== 'playing' || room.phase !== 'result') return;
+    room.roundIndex += 1;
+    if (room.roundIndex >= room.playScenes.length) finishGame(room);
+    else startRound(room);
+  }, delay);
 }
 
-function checkVoteComplete(room) {
-  if (room.status === 'playing' && ['voting', 'revoting'].includes(room.phase) && room.votes.size >= room.players.size) {
-    setTimeout(() => resolveVote(room), 350);
+function checkWritingComplete(room) {
+  if (room.status === 'playing' && room.phase === 'writing' && room.submissions.size >= room.players.size) {
+    setTimeout(() => beginVoting(room), 400);
+  }
+}
+
+function checkVotingComplete(room) {
+  if (room.status !== 'playing' || room.phase !== 'voting') return;
+  const eligible = eligibleVoters(room);
+  const voted = eligible.filter(id => room.votes.has(id)).length;
+  io.to(room.code).emit('vote-progress', { voted, total: eligible.length });
+  if (voted >= eligible.length) setTimeout(() => revealRound(room), 400);
+}
+
+function emitPrivateSync(room, socket) {
+  if (!room.players.has(socket.id)) return;
+
+  if (room.phase === 'writing') {
+    socket.emit('round-start', {
+      ...roundProgress(room),
+      scene: currentScene(room),
+      seconds: secondsLeft(room, room.writingSeconds),
+      submitted: room.submissions.has(socket.id)
+    });
+    socket.emit('answer-progress', { done: room.submissions.size, total: room.players.size });
+  } else if (room.phase === 'voting') {
+    socket.emit('voting-start', {
+      ...roundProgress(room),
+      scene: currentScene(room),
+      submissions: room.entries.map(entry => ({
+        id: entry.id,
+        text: entry.text,
+        mine: entry.authorId === socket.id
+      })),
+      seconds: secondsLeft(room, 20),
+      voted: room.votes.has(socket.id)
+    });
+    const eligible = eligibleVoters(room);
+    socket.emit('vote-progress', {
+      voted: eligible.filter(id => room.votes.has(id)).length,
+      total: eligible.length
+    });
+  } else if (room.phase === 'result' && room.lastResult) {
+    socket.emit('round-result', room.lastResult);
   }
 }
 
@@ -315,15 +330,31 @@ function cleanupDisconnectedPlayer(code, playerId) {
   }
 
   room.players.delete(playerId);
+  room.submissions.delete(playerId);
   room.votes.delete(playerId);
-  for (const [voterId, targetId] of [...room.votes.entries()]) {
-    if (targetId === playerId) room.votes.delete(voterId);
+
+  const removedEntryIds = room.entries
+    .filter(entry => entry.authorId === playerId)
+    .map(entry => entry.id);
+  room.entries = room.entries.filter(entry => entry.authorId !== playerId);
+  for (const [voterId, submissionId] of [...room.votes.entries()]) {
+    if (removedEntryIds.includes(submissionId)) room.votes.delete(voterId);
   }
 
-  if (room.status === 'playing') {
-    abortToLobby(room, 'プレイヤーが退出したためゲームを中断しました。4人そろったらもう一度スタートしてね。');
-  } else {
-    emitLobby(room);
+  if (room.status === 'playing' && room.players.size < MIN_PLAYERS) {
+    abortToLobby(room, '3人未満になったためゲームを中断しました。');
+    return;
+  }
+
+  emitLobby(room);
+  if (room.phase === 'writing') checkWritingComplete(room);
+  if (room.phase === 'voting') {
+    if (room.entries.length < 2) {
+      room.phase = 'result';
+      revealRound(room);
+    } else {
+      checkVotingComplete(room);
+    }
   }
 }
 
@@ -334,10 +365,10 @@ io.on('connection', socket => {
       clearTimeout(pending);
       pendingDisconnects.delete(socket.id);
     }
-    const recoveredRoom = rooms.get(socket.data.roomCode);
-    if (recoveredRoom) {
-      emitLobby(recoveredRoom);
-      if (recoveredRoom.status === 'playing') emitPrivateSync(recoveredRoom, socket);
+    const room = rooms.get(socket.data.roomCode);
+    if (room) {
+      emitLobby(room);
+      if (room.status === 'playing') emitPrivateSync(room, socket);
     }
   }
 
@@ -348,19 +379,20 @@ io.on('connection', socket => {
       hostId: socket.id,
       status: 'lobby',
       phase: 'lobby',
-      discussionSeconds: 90,
+      rounds: 8,
+      writingSeconds: 35,
       players: new Map(),
-      wolfId: null,
-      seerId: null,
-      seerResult: null,
+      playScenes: [],
+      roundIndex: 0,
+      submissions: new Map(),
+      entries: [],
       votes: new Map(),
-      voteCandidates: [],
-      voteHistory: [],
       timer: null,
-      phaseEndsAt: 0
+      phaseEndsAt: 0,
+      lastResult: null
     };
 
-    room.players.set(socket.id, { id: socket.id, name: safeName(name), role: null });
+    room.players.set(socket.id, { id: socket.id, name: safeName(name), score: 0 });
     rooms.set(code, room);
     socket.join(code);
     socket.data.roomCode = code;
@@ -373,74 +405,90 @@ io.on('connection', socket => {
     const room = rooms.get(code);
     if (!room) return socket.emit('join-error', 'そのルームは見つかりません。');
     if (room.status !== 'lobby') return socket.emit('join-error', 'このルームはすでにゲーム中です。');
-    if (room.players.size >= MAX_PLAYERS) return socket.emit('join-error', 'このルームは4人そろっています。');
+    if (room.players.size >= MAX_PLAYERS) return socket.emit('join-error', 'このルームは満員です。');
 
-    room.players.set(socket.id, { id: socket.id, name: safeName(name), role: null });
+    room.players.set(socket.id, { id: socket.id, name: safeName(name), score: 0 });
     socket.join(code);
     socket.data.roomCode = code;
     socket.emit('room-joined', { code, isHost: false });
     emitLobby(room);
   });
 
-  socket.on('update-settings', ({ code, discussionSeconds }) => {
+  socket.on('update-settings', ({ code, rounds, writingSeconds }) => {
     const room = rooms.get(String(code || '').toUpperCase());
     if (!room || room.hostId !== socket.id || room.status !== 'lobby') return;
-    const s = Number(discussionSeconds);
-    room.discussionSeconds = [60, 90, 120, 180].includes(s) ? s : 90;
+    const r = Number(rounds);
+    const s = Number(writingSeconds);
+    room.rounds = [5, 8, 10, 12].includes(r) ? r : 8;
+    room.writingSeconds = [20, 30, 35, 45, 60].includes(s) ? s : 35;
     emitLobby(room);
   });
 
   socket.on('start-game', ({ code }) => {
     const room = rooms.get(String(code || '').toUpperCase());
     if (!room || room.hostId !== socket.id || room.status !== 'lobby') return;
-    if (room.players.size !== 4) return socket.emit('input-error', '4人ちょうどそろったら開始できます！');
-    startGame(room);
+    if (room.players.size < MIN_PLAYERS) return socket.emit('input-error', '3人以上そろったら開始できます！');
+
+    room.playScenes = shuffle(SCENES).slice(0, Math.min(room.rounds, SCENES.length));
+    room.roundIndex = 0;
+    room.status = 'playing';
+    room.phase = 'starting';
+    room.submissions = new Map();
+    room.entries = [];
+    room.votes = new Map();
+    room.lastResult = null;
+    for (const player of room.players.values()) player.score = 0;
+
+    emitLobby(room);
+    io.to(room.code).emit('game-started', { total: room.playScenes.length });
+    setTimeout(() => {
+      if (rooms.has(room.code) && room.status === 'playing') startRound(room);
+    }, 700);
   });
 
-  socket.on('seer-check', ({ code, targetId }) => {
+  socket.on('submit-caption', ({ code, text }) => {
     const room = rooms.get(String(code || '').toUpperCase());
-    if (!room || room.status !== 'playing' || room.phase !== 'seer') return;
-    const seer = room.players.get(socket.id);
-    if (!seer || seer.role !== 'seer' || room.seerResult) return;
-    targetId = String(targetId || '');
-    if (!room.players.has(targetId) || targetId === socket.id) return;
+    if (!room || room.status !== 'playing' || room.phase !== 'writing') return;
+    if (!room.players.has(socket.id) || room.submissions.has(socket.id)) return;
 
-    const target = room.players.get(targetId);
-    room.seerResult = {
-      targetId,
-      targetName: target.name,
-      isWolf: target.role === 'wolf'
-    };
-    socket.emit('seer-result', room.seerResult);
-    setTimeout(() => beginDiscussion(room), 1500);
+    const cleaned = safeCaption(text);
+    if (!cleaned) return socket.emit('input-error', 'タイトルを入力してね！');
+
+    room.submissions.set(socket.id, cleaned);
+    socket.emit('submission-locked');
+    io.to(room.code).emit('answer-progress', { done: room.submissions.size, total: room.players.size });
+    checkWritingComplete(room);
   });
 
-  socket.on('force-vote', ({ code }) => {
+  socket.on('submit-vote', ({ code, submissionId }) => {
     const room = rooms.get(String(code || '').toUpperCase());
-    if (!room || room.hostId !== socket.id || room.status !== 'playing' || room.phase !== 'discussion') return;
-    beginVoting(room, false);
-  });
+    if (!room || room.status !== 'playing' || room.phase !== 'voting') return;
+    if (!room.players.has(socket.id) || room.votes.has(socket.id)) return;
 
-  socket.on('submit-vote', ({ code, targetId }) => {
-    const room = rooms.get(String(code || '').toUpperCase());
-    if (!room || room.status !== 'playing' || !['voting', 'revoting'].includes(room.phase) || room.votes.has(socket.id)) return;
-    if (!room.players.has(socket.id)) return;
+    const target = room.entries.find(entry => entry.id === String(submissionId || ''));
+    if (!target) return;
+    if (target.authorId === socket.id) return socket.emit('input-error', '自分のタイトルには投票できません。');
 
-    targetId = String(targetId || '');
-    if (!room.voteCandidates.includes(targetId) || !room.players.has(targetId)) return;
-    if (targetId === socket.id) return socket.emit('input-error', '自分には投票できません。');
-
-    room.votes.set(socket.id, targetId);
+    room.votes.set(socket.id, target.id);
     socket.emit('vote-locked');
-    io.to(room.code).emit('vote-progress', { voted: room.votes.size, total: room.players.size });
-    checkVoteComplete(room);
+    checkVotingComplete(room);
   });
 
   socket.on('restart-lobby', ({ code }) => {
     const room = rooms.get(String(code || '').toUpperCase());
     if (!room || room.hostId !== socket.id || room.status !== 'finished') return;
+
+    clearTimer(room);
     room.status = 'lobby';
-    resetGameState(room);
+    room.phase = 'lobby';
+    room.playScenes = [];
+    room.roundIndex = 0;
+    room.submissions = new Map();
+    room.entries = [];
+    room.votes = new Map();
+    room.lastResult = null;
+    for (const player of room.players.values()) player.score = 0;
+
     io.to(room.code).emit('back-to-lobby');
     emitLobby(room);
   });
@@ -460,4 +508,4 @@ io.on('connection', socket => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Four Player Werewolf running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Title Academy running on port ${PORT}`));
