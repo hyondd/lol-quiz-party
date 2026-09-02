@@ -1,473 +1,53 @@
 const socket = io();
 const $ = id => document.getElementById(id);
-const screens = ['home', 'lobby', 'game', 'result', 'closed'];
-
-let currentRoom = '';
-let isHost = false;
-let latestPlayers = [];
-let timerInterval = null;
-let hasConnectedOnce = false;
-
-function showScreen(id) {
-  screens.forEach(screen => $(screen).classList.toggle('hidden', screen !== id));
-}
-
-function toast(message) {
-  const el = $('toast');
-  el.textContent = message;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2200);
-}
-
-function escRoomInput(value) {
-  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-}
-
-function getNickname() {
-  const name = $('nickname').value.trim();
-  if (!name) {
-    $('homeError').textContent = 'ニックネームを入力してね！';
-    return null;
-  }
-  localStorage.setItem('party-name', name);
-  return name;
-}
-
-function shareUrl(code) {
-  return `${location.origin}${location.pathname}?room=${encodeURIComponent(code)}`;
-}
-
-function stopTimer() {
-  clearInterval(timerInterval);
-  timerInterval = null;
-  $('timerText').textContent = '—';
-  $('timerBar').style.width = '0%';
-}
-
-function startTimer(seconds) {
-  clearInterval(timerInterval);
-  const total = Math.max(1, Number(seconds) || 1);
-  const start = performance.now();
-  $('timerText').textContent = total;
-  $('timerBar').style.width = '100%';
-
-  timerInterval = setInterval(() => {
-    const elapsed = (performance.now() - start) / 1000;
-    const remaining = Math.max(0, total - elapsed);
-    $('timerText').textContent = Math.ceil(remaining);
-    $('timerBar').style.width = `${(remaining / total) * 100}%`;
-    if (remaining <= 0) clearInterval(timerInterval);
-  }, 100);
-}
-
-function setRound(round, total, stage) {
-  $('roundNum').textContent = round;
-  $('roundTotal').textContent = total;
-  $('stageLabel').textContent = stage;
-}
-
-function clearGame() {
-  $('gameContent').innerHTML = '';
-  $('gameMessage').textContent = '';
-}
-
-function renderPlayers(players) {
-  latestPlayers = players || [];
-  $('playerCount').textContent = latestPlayers.length;
-  const box = $('players');
-  box.innerHTML = '';
-
-  latestPlayers.forEach((player, index) => {
-    const row = document.createElement('div');
-    row.className = 'player-row';
-
-    const left = document.createElement('div');
-    left.className = 'player-name';
-
-    const number = document.createElement('span');
-    number.className = 'player-index';
-    number.textContent = index + 1;
-
-    const name = document.createElement('strong');
-    name.textContent = player.name;
-    left.append(number, name);
-
-    if (player.isHost) {
-      const host = document.createElement('span');
-      host.className = 'host-pill';
-      host.textContent = 'HOST';
-      left.appendChild(host);
-    }
-
-    const score = document.createElement('span');
-    score.className = 'player-score';
-    score.textContent = `${player.score} pt`;
-
-    row.append(left, score);
-    box.appendChild(row);
-  });
-
-  renderMiniScore(latestPlayers);
-
-  if (isHost) {
-    $('startBtn').disabled = latestPlayers.length < 3;
-    $('startBtn').textContent = latestPlayers.length < 3
-      ? `あと${3 - latestPlayers.length}人で開始`
-      : 'ゲーム開始';
-  }
-}
-
-function renderMiniScore(players) {
-  const box = $('miniScoreboard');
-  box.innerHTML = '';
-  (players || []).slice(0, 8).forEach((player, index) => {
-    const row = document.createElement('div');
-    row.className = 'score-row';
-    const name = document.createElement('span');
-    name.textContent = `${index + 1}. ${player.name}`;
-    const score = document.createElement('strong');
-    score.textContent = `${player.score}`;
-    row.append(name, score);
-    box.appendChild(row);
-  });
-}
-
-function setLobby(code, host) {
-  currentRoom = code;
-  isHost = host;
-  $('roomCodeText').textContent = code;
-  $('shareLink').value = shareUrl(code);
-  $('hostTools').classList.toggle('hidden', !host);
-  $('guestWaiting').classList.toggle('hidden', host);
-  showScreen('lobby');
-  history.replaceState(null, '', `?room=${encodeURIComponent(code)}`);
-}
-
-function makeSceneCard(scene, compact = false) {
-  const card = document.createElement('div');
-  card.className = `scene-card ${compact ? 'compact' : ''}`;
-
-  const tape = document.createElement('div');
-  tape.className = 'scene-tape';
-  tape.textContent = 'お題画像';
-
-  const art = document.createElement('div');
-  art.className = 'scene-art';
-  art.textContent = scene?.art || '？';
-
-  const detail = document.createElement('div');
-  detail.className = 'scene-detail';
-  detail.textContent = scene?.detail || '';
-
-  card.append(tape, art, detail);
-  return card;
-}
-
-function lockCaptionForm(message = '提出済み。みんなの回答を待っています...') {
-  const input = $('captionInput');
-  const button = $('captionSubmit');
-  if (input) input.disabled = true;
-  if (button) button.disabled = true;
-  $('gameMessage').textContent = message;
-}
-
-function renderRoundStart(data) {
-  showScreen('game');
-  clearGame();
-  setRound(data.round, data.total, 'TITLE');
-  $('progressText').textContent = `0/${latestPlayers.length}人 提出済み`;
-
-  const layout = document.createElement('div');
-  layout.className = 'write-layout';
-  layout.appendChild(makeSceneCard(data.scene));
-
-  const write = document.createElement('div');
-  write.className = 'write-card';
-
-  const heading = document.createElement('div');
-  heading.className = 'write-heading';
-  const h2 = document.createElement('h2');
-  h2.textContent = 'この画像にタイトルをつけて';
-  const hint = document.createElement('p');
-  hint.className = 'muted';
-  hint.textContent = '説明より、一瞬で意味が伝わる一言が強い。';
-  heading.append(h2, hint);
-
-  const textarea = document.createElement('textarea');
-  textarea.id = 'captionInput';
-  textarea.maxLength = 80;
-  textarea.placeholder = '例：月曜日の僕';
-
-  const bottom = document.createElement('div');
-  bottom.className = 'write-bottom';
-  const counter = document.createElement('span');
-  counter.className = 'muted';
-  counter.textContent = '0/80';
-  const submit = document.createElement('button');
-  submit.id = 'captionSubmit';
-  submit.className = 'btn primary';
-  submit.textContent = 'タイトルを提出';
-
-  textarea.oninput = () => {
-    counter.textContent = `${textarea.value.length}/80`;
-  };
-
-  submit.onclick = () => {
-    const text = textarea.value.trim();
-    if (!text) return toast('タイトルを入力してね！');
-    socket.emit('submit-caption', { code: currentRoom, text });
-    lockCaptionForm();
-  };
-
-  bottom.append(counter, submit);
-  write.append(heading, textarea, bottom);
-  layout.appendChild(write);
-  $('gameContent').appendChild(layout);
-
-  if (data.submitted) lockCaptionForm();
-  startTimer(data.seconds);
-  renderMiniScore(latestPlayers);
-}
-
-function renderVoting(data) {
-  showScreen('game');
-  clearGame();
-  setRound(data.round, data.total, 'VOTE');
-  $('progressText').textContent = 'いちばん好きなタイトルを1つ選んで！';
-
-  const top = document.createElement('div');
-  top.className = 'vote-scene-wrap';
-  top.appendChild(makeSceneCard(data.scene, true));
-  $('gameContent').appendChild(top);
-
-  const grid = document.createElement('div');
-  grid.className = 'caption-grid';
-
-  (data.submissions || []).forEach((submission, index) => {
-    const button = document.createElement('button');
-    button.className = `caption-card ${submission.mine ? 'mine' : ''}`;
-    button.disabled = Boolean(submission.mine || data.voted);
-
-    const label = document.createElement('span');
-    label.className = 'caption-label';
-    label.textContent = submission.mine ? 'あなたの回答' : `作品 ${index + 1}`;
-
-    const text = document.createElement('strong');
-    text.textContent = submission.text;
-    button.append(label, text);
-
-    if (!submission.mine && !data.voted) {
-      button.onclick = () => {
-        document.querySelectorAll('.caption-card').forEach(card => card.disabled = true);
-        button.classList.add('selected');
-        socket.emit('submit-vote', { code: currentRoom, submissionId: submission.id });
-      };
-    }
-
-    grid.appendChild(button);
-  });
-
-  $('gameContent').appendChild(grid);
-  $('gameMessage').textContent = data.voted
-    ? '投票済み。結果発表を待っています...'
-    : '作者名は投票が終わるまで秘密。自分の回答には投票できません。';
-  startTimer(data.seconds);
-}
-
-function renderRoundResult(data) {
-  stopTimer();
-  showScreen('game');
-  clearGame();
-  setRound(data.round, data.total, 'RESULT');
-  $('progressText').textContent = '作者オープン！';
-
-  const top = document.createElement('div');
-  top.className = 'result-scene-wrap';
-  top.appendChild(makeSceneCard(data.scene, true));
-  $('gameContent').appendChild(top);
-
-  if (!(data.entries || []).length) {
-    const empty = document.createElement('div');
-    empty.className = 'empty-card';
-    empty.textContent = data.message || '今回は回答がありませんでした。';
-    $('gameContent').appendChild(empty);
-  } else {
-    const list = document.createElement('div');
-    list.className = 'reveal-list';
-
-    data.entries.forEach((entry, index) => {
-      const card = document.createElement('div');
-      card.className = `reveal-card ${entry.winner ? 'winner' : ''}`;
-
-      const rank = document.createElement('span');
-      rank.className = 'reveal-rank';
-      rank.textContent = entry.winner ? '🏆' : `${index + 1}`;
-
-      const body = document.createElement('div');
-      const title = document.createElement('strong');
-      title.textContent = entry.text;
-      const meta = document.createElement('small');
-      meta.textContent = `${entry.authorName} · ${entry.votes}票`;
-      body.append(title, meta);
-
-      card.append(rank, body);
-      list.appendChild(card);
-    });
-
-    $('gameContent').appendChild(list);
-  }
-
-  $('gameMessage').textContent = data.message || '';
-  renderPlayers(data.players || latestPlayers);
-}
-
-function renderFinal(players) {
-  stopTimer();
-  const sorted = [...(players || [])].sort((a, b) => b.score - a.score);
-  $('podium').innerHTML = '';
-
-  const top3 = sorted.slice(0, 3);
-  const displayOrder = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
-  displayOrder.forEach(player => {
-    const actualRank = sorted.findIndex(p => p.id === player.id) + 1;
-    const card = document.createElement('div');
-    card.className = `podium-card ${actualRank === 1 ? 'first' : ''}`;
-
-    const medal = document.createElement('div');
-    medal.className = 'rank';
-    medal.textContent = actualRank === 1 ? '🥇' : actualRank === 2 ? '🥈' : '🥉';
-    const name = document.createElement('strong');
-    name.textContent = player.name;
-    const score = document.createElement('span');
-    score.textContent = `${player.score} pt`;
-    card.append(medal, name, score);
-    $('podium').appendChild(card);
-  });
-
-  $('finalScoreboard').innerHTML = '';
-  sorted.forEach((player, index) => {
-    const row = document.createElement('div');
-    row.className = 'score-row final-row';
-    const name = document.createElement('span');
-    name.textContent = `${index + 1}位 · ${player.name}`;
-    const score = document.createElement('strong');
-    score.textContent = `${player.score} pt`;
-    row.append(name, score);
-    $('finalScoreboard').appendChild(row);
-  });
-
-  $('restartBtn').classList.toggle('hidden', !isHost);
-  showScreen('result');
-}
-
-// Home
-$('nickname').value = localStorage.getItem('party-name') || localStorage.getItem('lolquiz-name') || '';
-$('roomCode').addEventListener('input', event => {
-  event.target.value = escRoomInput(event.target.value);
-});
-
-const urlRoom = new URLSearchParams(location.search).get('room');
-if (urlRoom) $('roomCode').value = escRoomInput(urlRoom);
-
-$('createBtn').onclick = () => {
-  const name = getNickname();
-  if (!name) return;
-  $('homeError').textContent = '';
-  socket.emit('create-room', { name });
+const screens = ['home','lobby','game','result','closed'];
+const GAME_INFO = {
+  genshin:{title:'原神クイズ',icon:'✦',desc:'モンドからフォンテーヌまでの知識で勝負。',rule:'4択クイズ。正解で500pt。問題と選択肢は毎ゲームシャッフルされます。',timeLabel:'回答時間'},
+  values:{title:'価値観一致',icon:'🧠',desc:'4択で多数派を選べば得点。',rule:'正解はありません。みんなが選んだ最多数の選択肢を選んだ人が500pt。同率なら両方が多数派です。',timeLabel:'回答時間'},
+  oneLiner:{title:'お題で一言',icon:'💬',desc:'匿名で一言を書いて、いちばん好きな回答に投票。',rule:'全員がお題に一言を投稿。作者名を隠して投票し、1票200pt＋最多得票500pt。自分の回答には投票できません。',timeLabel:'考える時間'},
+  wordWolf:{title:'ワードウルフ',icon:'🐺',desc:'1人だけ違うお題を持つ正体隠匿ゲーム。',rule:'全員に似たワードが配られ、1人だけ別ワード。話し合い後に怪しい人へ投票。少数派を当てた人は400pt、逃げ切った少数派は700pt。',timeLabel:'話し合い時間'},
+  werewolf4:{title:'4人ミニ人狼',icon:'🌙',desc:'人狼1・占い師1・村人2の4人専用心理戦。',rule:'占い師が最初に1人を占い、全員で話し合って投票。最多票が同数なら1回だけ再投票。それでも同票なら人狼の勝ち。',timeLabel:'話し合い時間'},
+  title:{title:'タイトル学園',icon:'📷',desc:'実写写真に一番おもしろいタイトルをつける。',rule:'全員が同じ実写写真を見てタイトルを投稿。作者名を隠して投票し、1票200pt＋最多得票500pt。',timeLabel:'考える時間'}
 };
-
-$('joinBtn').onclick = () => {
-  const name = getNickname();
-  if (!name) return;
-  const code = escRoomInput($('roomCode').value);
-  if (!code) return $('homeError').textContent = 'ルームコードを入力してね！';
-  $('homeError').textContent = '';
-  socket.emit('join-room', { code, name });
-};
-
-$('copyBtn').onclick = async () => {
-  try {
-    await navigator.clipboard.writeText($('shareLink').value);
-    toast('招待リンクをコピーしました！');
-  } catch {
-    $('shareLink').select();
-    document.execCommand('copy');
-    toast('招待リンクをコピーしました！');
-  }
-};
-
-function emitSettings() {
-  if (!isHost || !currentRoom) return;
-  socket.emit('update-settings', {
-    code: currentRoom,
-    rounds: Number($('roundsSelect').value),
-    writingSeconds: Number($('writingSelect').value)
-  });
-}
-
-$('roundsSelect').onchange = emitSettings;
-$('writingSelect').onchange = emitSettings;
-$('startBtn').onclick = () => socket.emit('start-game', { code: currentRoom });
-$('restartBtn').onclick = () => socket.emit('restart-lobby', { code: currentRoom });
-
-// Socket events
-socket.on('connect', () => {
-  if (hasConnectedOnce) toast('再接続しました！');
-  hasConnectedOnce = true;
-});
-
-socket.on('disconnect', () => toast('通信が切れました。再接続中...'));
-socket.on('room-created', ({ code, isHost: host }) => setLobby(code, host));
-socket.on('room-joined', ({ code, isHost: host }) => setLobby(code, host));
-socket.on('join-error', message => $('homeError').textContent = message);
-socket.on('input-error', message => toast(message));
-
-socket.on('lobby-state', data => {
-  currentRoom = data.code;
-  $('roomCodeText').textContent = data.code;
-  $('shareLink').value = shareUrl(data.code);
-  renderPlayers(data.players);
-
-  if (isHost) {
-    $('roundsSelect').value = String(data.rounds);
-    $('writingSelect').value = String(data.writingSeconds);
-  }
-});
-
-socket.on('game-started', ({ total }) => {
-  showScreen('game');
-  clearGame();
-  setRound('—', total, 'START');
-  $('progressText').textContent = 'お題を選んでいます...';
-  $('gameMessage').textContent = 'タイトル学園、開校！';
-  stopTimer();
-});
-
-socket.on('round-start', renderRoundStart);
-socket.on('submission-locked', () => lockCaptionForm());
-socket.on('answer-progress', ({ done, total }) => {
-  $('progressText').textContent = `${done}/${total}人 提出済み`;
-});
-
-socket.on('voting-start', renderVoting);
-socket.on('vote-locked', () => {
-  document.querySelectorAll('.caption-card').forEach(card => card.disabled = true);
-  $('gameMessage').textContent = '投票済み。結果発表を待っています...';
-});
-socket.on('vote-progress', ({ voted, total }) => {
-  $('progressText').textContent = `${voted}/${total}人 投票済み`;
-});
-
-socket.on('round-result', renderRoundResult);
-socket.on('game-finished', ({ players }) => renderFinal(players));
-socket.on('back-to-lobby', () => showScreen('lobby'));
-socket.on('game-aborted', message => {
-  stopTimer();
-  toast(message);
-  showScreen('lobby');
-});
-socket.on('room-closed', message => {
-  stopTimer();
-  $('closedMessage').textContent = message;
-  showScreen('closed');
-});
+let selectedGame='values', currentGame='values', currentRoom='', isHost=false, latestPlayers=[], lobbySettings=null;
+let timerInterval=null, hasConnectedOnce=false, secretWord='', myRole=null, myRoleLabel='';
+function showScreen(id){screens.forEach(s=>$(s).classList.toggle('hidden',s!==id));}
+function toast(msg){const e=$('toast');e.textContent=msg;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200);}
+function escRoom(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);}
+function nickname(){const n=$('nickname').value.trim();if(!n){$('homeError').textContent='ニックネームを入力してね！';return null;}localStorage.setItem('party-name',n);return n;}
+function shareUrl(code){return `${location.origin}${location.pathname}?room=${encodeURIComponent(code)}`;}
+function info(game=currentGame){return GAME_INFO[game]||GAME_INFO.values;}
+function stopTimer(){clearInterval(timerInterval);timerInterval=null;$('timerText').textContent='—';$('timerBar').style.width='0%';}
+function startTimer(seconds){clearInterval(timerInterval);const total=Math.max(1,Number(seconds)||1),start=performance.now();$('timerText').textContent=total;$('timerBar').style.width='100%';timerInterval=setInterval(()=>{const r=Math.max(0,total-(performance.now()-start)/1000);$('timerText').textContent=Math.ceil(r);$('timerBar').style.width=`${r/total*100}%`;if(r<=0)clearInterval(timerInterval);},100);}
+function setRound(r,t,stage){$('roundNum').textContent=r;$('roundTotal').textContent=t;$('stageLabel').textContent=stage;}
+function clearGame(){$('gameContent').innerHTML='';$('gameMessage').textContent='';}
+function elem(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
+function updateSelectedGame(){document.querySelectorAll('.game-card').forEach(c=>c.classList.toggle('selected',c.dataset.game===selectedGame));const g=info(selectedGame);$('selectedGameIcon').textContent=g.icon;$('selectedGameName').textContent=g.title;$('selectedGameDesc').textContent=g.desc;}
+function renderPlayers(players){latestPlayers=players||[];$('playerCount').textContent=latestPlayers.length;const box=$('players');box.innerHTML='';latestPlayers.forEach((p,i)=>{const row=elem('div','player-row'),left=elem('div','player-name'),num=elem('span','player-index',i+1),name=elem('strong','',p.name);left.append(num,name);if(p.isHost)left.append(elem('span','host-pill','HOST'));const score=elem('span','player-score',currentGame==='werewolf4'?'参加中':`${p.score} pt`);row.append(left,score);box.append(row);});renderMiniScore(latestPlayers);if(isHost&&lobbySettings){const n=latestPlayers.length,exact=lobbySettings.exact,min=lobbySettings.min,ok=exact?n===exact:n>=min;$('startBtn').disabled=!ok;$('startBtn').textContent=ok?'ゲーム開始':exact?`あと${Math.max(0,exact-n)}人`:`あと${Math.max(0,min-n)}人で開始`;}}
+function renderMiniScore(players){const box=$('miniScoreboard');box.innerHTML='';(players||[]).slice(0,8).forEach((p,i)=>{const r=elem('div','score-row');r.append(elem('span','',`${i+1}. ${p.name}`),elem('strong','',currentGame==='werewolf4'?'—':p.score));box.append(r);});}
+function configureLobby(data){currentGame=data.game;const g=info();lobbySettings=data.settings;$('lobbyGameIcon').textContent=g.icon;$('lobbyGameTitle').textContent=data.gameTitle;$('lobbyRequirement').textContent=data.settings.exact?`${data.settings.exact}人ちょうどで開始 · 最大${data.settings.max}人`:`${data.settings.min}人以上で開始 · 最大${data.settings.max}人`;$('gameRule').textContent=g.rule;$('secondsLabelText').textContent=g.timeLabel;const rs=$('roundsSelect');rs.innerHTML='';data.settings.rounds.forEach(n=>{const o=elem('option','',`${n}ラウンド`);o.value=n;rs.append(o);});rs.value=String(data.rounds);$('roundsLabel').classList.toggle('hidden',data.settings.rounds.length===1);const ss=$('secondsSelect');ss.innerHTML='';data.settings.seconds.forEach(n=>{const o=elem('option','',`${n}秒`);o.value=n;ss.append(o);});ss.value=String(data.seconds);$('scoreSection').classList.toggle('hidden',currentGame==='werewolf4');renderPlayers(data.players);}
+function setLobby(code,host){currentRoom=code;isHost=host;$('roomCodeText').textContent=code;$('shareLink').value=shareUrl(code);$('hostTools').classList.toggle('hidden',!host);$('guestWaiting').classList.toggle('hidden',host);showScreen('lobby');history.replaceState(null,'',`?room=${encodeURIComponent(code)}`);}
+function makePhoto(scene,compact=false){const card=elem('div',`photo-card ${compact?'compact':''}`),img=elem('img','photo-img');img.src=scene?.image||'';img.alt='お題写真';img.loading='eager';img.onerror=()=>{img.style.display='none';card.prepend(elem('div','photo-error','写真を読み込めませんでした'));};card.append(img);if(scene?.credit){const c=elem('div','photo-credit');c.append(document.createTextNode(`Photo: ${scene.credit} · `));const a=elem('a','','source');a.href=scene.source||'#';a.target='_blank';a.rel='noopener noreferrer';c.append(a);card.append(c);}return card;}
+function questionHeading(text,ko=''){const w=elem('div','question-heading');w.append(elem('h2','',text));if(ko)w.append(elem('p','question-ko',ko));return w;}
+function renderChoiceRound(d){currentGame=d.kind==='quiz'?'genshin':'values';showScreen('game');clearGame();setRound(d.round,d.total,d.kind==='quiz'?'QUIZ':'VALUES');$('progressText').textContent=`0/${latestPlayers.length}人 回答済み`;const wrap=elem('div','choice-wrap');wrap.append(questionHeading(d.text,d.ko));const grid=elem('div','choice-grid');d.options.forEach((opt,i)=>{const b=elem('button','choice-card');b.append(elem('span','choice-letter',String.fromCharCode(65+i)));const words=elem('span','choice-words');words.append(elem('strong','',opt));if(d.optionsKo?.[i])words.append(elem('small','',d.optionsKo[i]));b.append(words);b.onclick=()=>{document.querySelectorAll('.choice-card').forEach(x=>x.disabled=true);b.classList.add('selected');socket.emit('submit-choice',{code:currentRoom,choice:i});};grid.append(b);});wrap.append(grid);$('gameContent').append(wrap);startTimer(d.seconds);}
+function renderChoiceResult(d){stopTimer();showScreen('game');clearGame();setRound(d.round,d.total,'RESULT');$('progressText').textContent=d.kind==='quiz'?'正解発表':'みんなの価値観';const wrap=elem('div','choice-wrap');wrap.append(questionHeading(d.text,d.ko));const max=Math.max(1,...d.counts),list=elem('div','result-choice-list');d.options.forEach((opt,i)=>{const winner=d.kind==='quiz'?i===d.correctIndex:d.winners.includes(i),card=elem('div',`result-choice ${winner?'winner':''}`),top=elem('div','result-choice-top');top.append(elem('strong','',`${String.fromCharCode(65+i)} · ${opt}`),elem('span','',`${d.counts[i]}票`));const bar=elem('div','vote-bar'),fill=elem('div','vote-fill');fill.style.width=`${d.counts[i]/max*100}%`;bar.append(fill);card.append(top,bar,elem('small','',d.voters[i]?.length?d.voters[i].join('・'):'選んだ人なし'));list.append(card);});wrap.append(list);$('gameContent').append(wrap);$('gameMessage').textContent=d.kind==='quiz'?`✅ 正解は ${String.fromCharCode(65+d.correctIndex)}。正解者 +500pt`:'🎯 多数派を選んだ人 +500pt';renderPlayers(d.players);}
+function makePromptBlock(prompt){const b=elem('div','prompt-block');b.append(elem('span','prompt-icon','💬'),elem('h2','',prompt));return b;}
+function renderTextRound(d){currentGame=d.kind;showScreen('game');clearGame();setRound(d.round,d.total,d.kind==='title'?'TITLE':'ONE LINE');$('progressText').textContent=`0/${latestPlayers.length}人 提出済み`;const layout=elem('div',d.kind==='title'?'write-layout':'write-layout single');if(d.kind==='title')layout.append(makePhoto(d.scene));else layout.append(makePromptBlock(d.prompt));const card=elem('div','write-card');card.append(elem('h3','',d.kind==='title'?'この写真にタイトルをつけて':'お題に一言！'));const ta=elem('textarea','');ta.id='textInput';ta.maxLength=80;ta.placeholder=d.kind==='title'?'例：月曜日の僕':'短い一言ほど強いかも。';const bottom=elem('div','write-bottom'),count=elem('span','muted','0/80'),submit=elem('button','btn primary','提出');ta.oninput=()=>count.textContent=`${ta.value.length}/80`;submit.onclick=()=>{const text=ta.value.trim();if(!text)return toast('一言を入力してね！');socket.emit('submit-text',{code:currentRoom,text});ta.disabled=true;submit.disabled=true;$('gameMessage').textContent='提出済み。みんなを待っています...';};bottom.append(count,submit);card.append(ta,bottom);layout.append(card);$('gameContent').append(layout);startTimer(d.seconds);}
+function renderTextVoting(d){currentGame=d.kind;stopTimer();showScreen('game');clearGame();setRound(d.round,d.total,'VOTE');$('progressText').textContent='いちばん好きな回答に投票';const top=elem('div','vote-source');top.append(d.kind==='title'?makePhoto(d.scene,true):makePromptBlock(d.prompt));$('gameContent').append(top);const grid=elem('div','caption-grid');d.submissions.forEach((s,i)=>{const b=elem('button',`caption-card ${s.mine?'mine':''}`);b.disabled=s.mine;b.append(elem('span','caption-label',s.mine?'あなたの回答':`作品 ${i+1}`),elem('strong','',s.text));if(!s.mine)b.onclick=()=>{document.querySelectorAll('.caption-card').forEach(x=>x.disabled=true);b.classList.add('selected');socket.emit('submit-text-vote',{code:currentRoom,submissionId:s.id});};grid.append(b);});$('gameContent').append(grid);$('gameMessage').textContent='作者名は結果まで秘密。自分の回答には投票できません。';startTimer(d.seconds);}
+function renderTextResult(d){currentGame=d.kind;stopTimer();showScreen('game');clearGame();setRound(d.round,d.total,'RESULT');$('progressText').textContent='作者オープン！';const top=elem('div','vote-source');top.append(d.kind==='title'?makePhoto(d.scene,true):makePromptBlock(d.prompt));$('gameContent').append(top);const list=elem('div','reveal-list');if(!d.entries.length)list.append(elem('div','empty-card',d.message));else d.entries.forEach((e,i)=>{const r=elem('div',`reveal-card ${e.winner?'winner':''}`);r.append(elem('span','reveal-rank',e.winner?'🏆':i+1));const body=elem('div');body.append(elem('strong','',e.text),elem('small','',`${e.authorName} · ${e.votes}票`));r.append(body);list.append(r);});$('gameContent').append(list);$('gameMessage').textContent=d.message;renderPlayers(d.players);}
+function renderWordRound(d){currentGame='wordWolf';showScreen('game');clearGame();secretWord='';setRound(d.round,d.total,'DISCUSSION');$('progressText').textContent='自分のワードを確認して話し合おう';const card=elem('div','secret-card');card.append(elem('span','secret-label','🔒 あなたのワード'));const word=elem('div','secret-word','受信中...');word.id='secretWord';card.append(word,elem('p','muted','自分が多数派か少数派かは表示されません。ワードそのものを直接言わずに話そう。'));$('gameContent').append(card);if(isHost){const b=elem('button','btn secondary vote-now','話し合い終了 → 投票へ');b.onclick=()=>{b.disabled=true;socket.emit('force-vote',{code:currentRoom});};$('gameContent').append(b);}startTimer(d.seconds);renderMiniScore(d.players||latestPlayers);}
+function renderWordSecret(d){secretWord=d.word||'';const e=$('secretWord');if(e)e.textContent=secretWord;}
+function renderPlayerVoting(d){currentGame=d.kind;stopTimer();showScreen('game');clearGame();setRound(d.round||1,d.total||1,d.revote?'REVOTE':'VOTE');$('progressText').textContent=`0/${d.players.length}人 投票済み`;if(currentGame==='werewolf4')showRoleBanner();const title=elem('div','vote-title');title.append(elem('span','',currentGame==='wordWolf'?'🐺':'🗳️'),elem('strong','',d.revote?'同票候補だけで再投票':currentGame==='wordWolf'?'少数派だと思う人に投票':'人狼だと思う人に投票'));$('gameContent').append(title);const grid=elem('div','player-vote-grid');(d.candidates||d.players).forEach(p=>{const b=elem('button','player-vote-card');b.disabled=p.id===socket.id;b.append(elem('span','avatar',p.name.slice(0,1)),elem('strong','',p.name),elem('small','',p.id===socket.id?'あなた':'この人に投票'));if(p.id!==socket.id)b.onclick=()=>{document.querySelectorAll('.player-vote-card').forEach(x=>x.disabled=true);b.classList.add('selected');socket.emit('submit-player-vote',{code:currentRoom,targetId:p.id});};grid.append(b);});$('gameContent').append(grid);startTimer(d.seconds);}
+function renderWordResult(d){stopTimer();showScreen('game');clearGame();setRound(d.round,d.total,'REVEAL');$('progressText').textContent=d.caught?'少数派を発見！':'少数派が逃げ切った！';const hero=elem('div',`reveal-hero ${d.caught?'caught':'escaped'}`);hero.append(elem('div','big-icon',d.caught?'🎯':'🐺'),elem('h2','',d.caught?'多数派の勝ち！':'少数派の勝ち！'),elem('p','',`少数派は ${d.minorityName}`));$('gameContent').append(hero);const words=elem('div','word-pair');words.append(elem('div','word-box',`多数派：${d.majorityWord}`),elem('div','word-box minority',`少数派：${d.minorityWord}`));$('gameContent').append(words);const list=elem('div','vote-result-list');d.voteResults.forEach(r=>{const row=elem('div',`vote-result-row ${r.isMinority?'minority-row':''}`),left=elem('div');left.append(elem('strong','',`${r.isMinority?'🐺 ':''}${r.name}`),elem('small','',r.voters.length?`← ${r.voters.join('・')}`:'投票なし'));row.append(left,elem('span','',`${r.votes}票`));list.append(row);});$('gameContent').append(list);$('gameMessage').textContent=d.caught?'当てた人 +400pt':'少数派 +700pt';renderPlayers(d.players);}
+function roleIcon(r){return r==='wolf'?'🐺':r==='seer'?'🔮':'🏠';}
+function showRoleBanner(){const b=$('roleBanner');if(currentGame!=='werewolf4'||!myRole){b.className='role-banner hidden';return;}b.className=`role-banner ${myRole}`;b.textContent=`${roleIcon(myRole)} あなたは「${myRoleLabel}」`;}
+function renderSeerPhase(d){currentGame='werewolf4';showScreen('game');clearGame();setRound(1,1,'NIGHT');$('scoreSection').classList.add('hidden');$('progressText').textContent=d.isSeer?'占う相手を1人選んで':'占い師が行動しています...';showRoleBanner();const card=elem('div','phase-card');card.append(elem('div','big-icon',roleIcon(myRole||'villager')),elem('h2','',myRoleLabel?`あなたは「${myRoleLabel}」`:'役職確認中...'),elem('p','muted',myRole==='wolf'?'処刑されなければ勝ち。正体を隠そう。':myRole==='seer'?'1人だけ占って人狼か確認できます。':'会話から人狼を見つけよう。'));$('gameContent').append(card);if(d.isSeer){const grid=elem('div','player-vote-grid');d.targets.forEach(p=>{const b=elem('button','player-vote-card');b.append(elem('span','avatar',p.name.slice(0,1)),elem('strong','',p.name),elem('small','','占う'));b.onclick=()=>{document.querySelectorAll('.player-vote-card').forEach(x=>x.disabled=true);socket.emit('seer-check',{code:currentRoom,targetId:p.id});};grid.append(b);});$('gameContent').append(grid);const res=elem('div','seer-result hidden');res.id='seerResult';$('gameContent').append(res);}startTimer(d.seconds);}
+function renderSeerResult(d){const e=$('seerResult');if(!e)return;e.classList.remove('hidden');e.classList.toggle('danger',d.isWolf);e.textContent=d.isWolf?`🐺 ${d.targetName} は人狼です。`:`✅ ${d.targetName} は人狼ではありません。`;}
+function renderWerewolfDiscussion(d){currentGame='werewolf4';showScreen('game');clearGame();setRound(1,1,'DISCUSSION');$('progressText').textContent='4人で話し合おう';showRoleBanner();const c=elem('div','phase-card');c.append(elem('div','big-icon','☀️'),elem('h2','','話し合いスタート'),elem('p','muted','人狼は嘘をついてOK。占い師は結果を言っても隠してもOK。'));$('gameContent').append(c);if(isHost){const b=elem('button','btn secondary vote-now','話し合い終了 → 投票へ');b.onclick=()=>{b.disabled=true;socket.emit('force-vote',{code:currentRoom});};$('gameContent').append(b);}startTimer(d.seconds);}
+function renderWerewolfTie(d){stopTimer();clearGame();setRound(1,1,'TIE');$('progressText').textContent='最多票が同数';showRoleBanner();const c=elem('div','phase-card');c.append(elem('div','big-icon','⚖️'),elem('h2','','再投票！'),elem('p','muted',`${d.candidates.map(x=>x.name).join('・')} が同票。もう一度同票なら人狼の勝ち。`));$('gameContent').append(c);}
+function renderFinal(players,werewolf=null){stopTimer();showScreen('result');$('specialResult').innerHTML='';$('podium').innerHTML='';$('finalScoreboard').innerHTML='';$('restartBtn').classList.toggle('hidden',!isHost);if(werewolf){$('resultTitle').textContent=werewolf.villageWin?'村人陣営の勝利！':'人狼の勝利！';const h=elem('div',`final-hero ${werewolf.villageWin?'village-win':'wolf-win'}`);h.append(elem('div','big-icon',werewolf.villageWin?'🏘️':'🐺'),elem('h3','',`人狼は ${werewolf.wolfName}`));$('specialResult').append(h);const roles=elem('div','role-reveal-grid');werewolf.roles.forEach(p=>{const c=elem('div',`role-reveal-card ${p.role}`);c.append(elem('span','',roleIcon(p.role)));const b=elem('div');b.append(elem('strong','',p.name),elem('small','',p.roleLabel));c.append(b);roles.append(c);});$('specialResult').append(roles);return;}$('resultTitle').textContent=`${info().title} 終了！`;const sorted=[...(players||[])].sort((a,b)=>b.score-a.score),top=sorted.slice(0,3),order=top.length>=3?[top[1],top[0],top[2]]:top;order.forEach(p=>{const rank=sorted.findIndex(x=>x.id===p.id)+1,c=elem('div',`podium-card ${rank===1?'first':''}`);c.append(elem('div','rank',rank===1?'🥇':rank===2?'🥈':'🥉'),elem('strong','',p.name),elem('span','',`${p.score} pt`));$('podium').append(c);});sorted.forEach((p,i)=>{const r=elem('div','score-row final-row');r.append(elem('span','',`${i+1}位 · ${p.name}`),elem('strong','',`${p.score} pt`));$('finalScoreboard').append(r);});}
+$('nickname').value=localStorage.getItem('party-name')||localStorage.getItem('lolquiz-name')||'';$('roomCode').addEventListener('input',e=>e.target.value=escRoom(e.target.value));const urlRoom=new URLSearchParams(location.search).get('room');if(urlRoom)$('roomCode').value=escRoom(urlRoom);document.querySelectorAll('.game-card').forEach(c=>c.onclick=()=>{selectedGame=c.dataset.game;updateSelectedGame();});updateSelectedGame();
+$('createBtn').onclick=()=>{const n=nickname();if(!n)return;$('homeError').textContent='';socket.emit('create-room',{name:n,game:selectedGame});};$('joinBtn').onclick=()=>{const n=nickname();if(!n)return;const code=escRoom($('roomCode').value);if(!code)return $('homeError').textContent='ルームコードを入力してね！';$('homeError').textContent='';socket.emit('join-room',{code,name:n});};$('copyBtn').onclick=async()=>{try{await navigator.clipboard.writeText($('shareLink').value);toast('招待リンクをコピーしました！');}catch{$('shareLink').select();document.execCommand('copy');toast('コピーしました！');}};
+function emitSettings(){if(!isHost||!currentRoom)return;socket.emit('update-settings',{code:currentRoom,rounds:Number($('roundsSelect').value),seconds:Number($('secondsSelect').value)});}$('roundsSelect').onchange=emitSettings;$('secondsSelect').onchange=emitSettings;$('startBtn').onclick=()=>socket.emit('start-game',{code:currentRoom});$('restartBtn').onclick=()=>socket.emit('restart-lobby',{code:currentRoom});
+socket.on('connect',()=>{if(hasConnectedOnce)toast('再接続しました！');hasConnectedOnce=true;});socket.on('disconnect',()=>toast('通信が切れました。再接続中...'));socket.on('room-created',({code,isHost:host,game})=>{currentGame=game;setLobby(code,host);});socket.on('room-joined',({code,isHost:host,game})=>{currentGame=game;setLobby(code,host);});socket.on('join-error',m=>$('homeError').textContent=m);socket.on('input-error',toast);socket.on('lobby-state',d=>{currentRoom=d.code;configureLobby(d);$('roomCodeText').textContent=d.code;$('shareLink').value=shareUrl(d.code);});socket.on('game-started',d=>{currentGame=d.game;showScreen('game');clearGame();setRound('—',d.total||1,'START');$('progressText').textContent=`${d.gameTitle} スタート！`;stopTimer();$('scoreSection').classList.toggle('hidden',currentGame==='werewolf4');});
+socket.on('choice-round',renderChoiceRound);socket.on('choice-result',renderChoiceResult);socket.on('text-round',renderTextRound);socket.on('text-voting',renderTextVoting);socket.on('text-result',renderTextResult);socket.on('word-round',renderWordRound);socket.on('word-secret',renderWordSecret);socket.on('player-voting',renderPlayerVoting);socket.on('word-result',renderWordResult);socket.on('role-info',d=>{myRole=d.role;myRoleLabel=d.roleLabel;showRoleBanner();});socket.on('seer-phase',renderSeerPhase);socket.on('seer-result',renderSeerResult);socket.on('werewolf-discussion',renderWerewolfDiscussion);socket.on('werewolf-tie',renderWerewolfTie);socket.on('submission-locked',()=>{$('gameMessage').textContent='送信済み。みんなを待っています...';});socket.on('answer-progress',({done,total})=>$('progressText').textContent=`${done}/${total}人 完了`);socket.on('vote-locked',()=>{$('gameMessage').textContent='投票済み。結果を待っています...';});socket.on('vote-progress',({voted,total})=>$('progressText').textContent=`${voted}/${total}人 投票済み`);socket.on('game-finished',d=>renderFinal(d.players,d.werewolf||null));socket.on('back-to-lobby',()=>{myRole=null;myRoleLabel='';showScreen('lobby');});socket.on('game-aborted',m=>{stopTimer();toast(m);showScreen('lobby');});socket.on('room-closed',m=>{stopTimer();$('closedMessage').textContent=m;showScreen('closed');});
