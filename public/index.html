@@ -3,145 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#11130f" />
-  <title>タイトル学園</title>
+  <meta name="theme-color" content="#090b13" />
+  <title>みんなのゲームセンター</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <div class="orb orb-a"></div>
-  <div class="orb orb-b"></div>
-
+  <div class="orb orb-a"></div><div class="orb orb-b"></div>
   <main class="shell">
-    <header class="brand">
-      <div class="logo">題</div>
-      <div>
-        <h1>タイトル学園</h1>
-        <p>この写真に、いちばん強いタイトルを。</p>
-      </div>
-    </header>
+    <header class="brand"><div class="logo">🎮</div><div><h1>みんなのゲームセンター</h1><p>クイズ・大喜利・心理戦を1つのルームで。</p></div></header>
 
-    <section id="home" class="panel hero">
-      <div class="eyebrow">CAPTION BATTLE</div>
-      <h2>実際の写真を見て、<br><span>一言で勝て。</span></h2>
-      <p class="muted lead">実写のお題写真にタイトルをつけて匿名投稿。いちばん笑ったタイトルに投票しよう。</p>
+    <section id="home" class="panel home-panel">
+      <div class="hero-copy"><div class="eyebrow">6 GAMES · REAL-TIME PARTY</div><h2>今日は、<span>何して遊ぶ？</span></h2><p class="muted">遊びたいゲームを選んでルームを作成。参加する人はルームコードだけでOK。</p></div>
 
-      <div class="rule-strip">
-        <div><strong>📷</strong><span>実写写真を見る</span></div>
-        <div><strong>✍️</strong><span>タイトルを書く</span></div>
-        <div><strong>🗳️</strong><span>匿名で投票</span></div>
-      </div>
+      <div class="category-block"><div class="category-head"><span>✦</span><div><strong>知識系</strong><small>知ってるほど強い</small></div></div><div class="game-grid single"><button class="game-card" data-game="genshin"><span class="game-icon">✦</span><span><strong>原神クイズ</strong><small>モンド〜フォンテーヌの30問</small></span><em>1〜40人</em></button></div></div>
 
-      <div class="form-grid">
-        <label>ニックネーム
-          <input id="nickname" maxlength="18" placeholder="例：ひおん" autocomplete="nickname" />
-        </label>
-        <label>ルームコード
-          <input id="roomCode" maxlength="6" placeholder="例：A7K9P" autocomplete="off" />
-        </label>
-      </div>
+      <div class="category-block"><div class="category-head"><span>🎉</span><div><strong>パーティー系</strong><small>正解よりみんなの感覚</small></div></div><div class="game-grid"><button class="game-card selected" data-game="values"><span class="game-icon">🧠</span><span><strong>価値観一致</strong><small>多数派を読んでポイント</small></span><em>2〜20人</em></button><button class="game-card" data-game="oneLiner"><span class="game-icon">💬</span><span><strong>お題で一言</strong><small>匿名大喜利 → 投票</small></span><em>3〜12人</em></button></div></div>
 
-      <div class="actions">
-        <button id="createBtn" class="btn primary">新しいルームを作る</button>
-        <button id="joinBtn" class="btn secondary">ルームに参加する</button>
-      </div>
-      <p id="homeError" class="error"></p>
+      <div class="category-block"><div class="category-head"><span>🕵️</span><div><strong>正体隠匿系</strong><small>会話とウソで勝負</small></div></div><div class="game-grid"><button class="game-card" data-game="wordWolf"><span class="game-icon">🐺</span><span><strong>ワードウルフ</strong><small>1人だけ違うお題</small></span><em>3〜20人</em></button><button class="game-card" data-game="werewolf4"><span class="game-icon">🌙</span><span><strong>4人ミニ人狼</strong><small>人狼1・占い師1・村人2</small></span><em>4人専用</em></button></div></div>
+
+      <div class="category-block"><div class="category-head"><span>🤣</span><div><strong>大喜利系</strong><small>一番笑わせた人が勝ち</small></div></div><div class="game-grid single"><button class="game-card" data-game="title"><span class="game-icon">📷</span><span><strong>タイトル学園</strong><small>実写写真にタイトルをつける</small></span><em>3〜12人</em></button></div></div>
+
+      <div class="join-zone"><div id="selectedGameBox" class="selected-game-box"><span id="selectedGameIcon">🧠</span><div><small>選択中</small><strong id="selectedGameName">価値観一致</strong><p id="selectedGameDesc">4択で多数派を選べば得点。</p></div></div><div class="form-grid"><label>ニックネーム<input id="nickname" maxlength="18" placeholder="例：ひおん" autocomplete="nickname" /></label><label>ルームコード<input id="roomCode" maxlength="6" placeholder="参加するときだけ入力" autocomplete="off" /></label></div><div class="actions"><button id="createBtn" class="btn primary">このゲームでルーム作成</button><button id="joinBtn" class="btn secondary">コードで参加</button></div><p id="homeError" class="error"></p></div>
     </section>
 
-    <section id="lobby" class="panel hidden">
-      <div class="lobby-top">
-        <div>
-          <div class="eyebrow">ROOM <span id="roomCodeText"></span></div>
-          <h2>タイトル学園</h2>
-          <p class="muted"><span id="playerCount">1</span>人参加中 · 3人以上で開始</p>
-        </div>
-        <div class="share-box">
-          <input id="shareLink" readonly />
-          <button id="copyBtn" class="btn small">招待リンクをコピー</button>
-        </div>
-      </div>
+    <section id="lobby" class="panel hidden"><div class="lobby-top"><div><div class="eyebrow">ROOM <span id="roomCodeText"></span></div><h2><span id="lobbyGameIcon">🎮</span> <span id="lobbyGameTitle">ゲーム</span></h2><p id="lobbyRequirement" class="muted"></p></div><div class="share-box"><input id="shareLink" readonly /><button id="copyBtn" class="btn small">招待リンクをコピー</button></div></div><div class="lobby-grid"><div><h3>参加者 <span id="playerCount" class="muted">0</span></h3><div id="players" class="player-list"></div></div><div id="hostTools" class="host-card hidden"><h3>ゲーム設定</h3><div class="setting-grid"><label id="roundsLabel">ラウンド数<select id="roundsSelect"></select></label><label><span id="secondsLabelText">時間</span><select id="secondsSelect"></select></label></div><div class="howto-card"><strong>ルール</strong><p id="gameRule"></p></div><button id="startBtn" class="btn primary wide">ゲーム開始</button></div><div id="guestWaiting" class="waiting-card"><div class="pulse"></div><h3>ホストを待っています...</h3><p class="muted">人数がそろったらスタート！</p></div></div></section>
 
-      <div class="lobby-grid">
-        <div>
-          <h3>参加者</h3>
-          <div id="players" class="player-list"></div>
-        </div>
+    <section id="game" class="panel hidden game-panel"><div class="game-top"><div><div class="eyebrow"><span id="stageLabel">ROUND</span> · <span id="roundNum">1</span>/<span id="roundTotal">1</span></div><div id="progressText" class="muted small-text">準備中...</div></div><div class="timer-wrap"><div id="timerText" class="timer-text">—</div><div class="timer-bar"><div id="timerBar" class="timer-fill"></div></div></div></div><div id="roleBanner" class="role-banner hidden"></div><div id="gameContent"></div><div id="gameMessage" class="game-message"></div><div id="scoreSection" class="score-mini"><h3>スコア</h3><div id="miniScoreboard" class="mini-scoreboard"></div></div></section>
 
-        <div id="hostTools" class="host-card hidden">
-          <h3>ゲーム設定</h3>
-          <div class="setting-grid">
-            <label>ラウンド数
-              <select id="roundsSelect">
-                <option value="5">5ラウンド</option>
-                <option value="8" selected>8ラウンド</option>
-                <option value="10">10ラウンド</option>
-                <option value="12">12ラウンド</option>
-              </select>
-            </label>
-            <label>考える時間
-              <select id="writingSelect">
-                <option value="20">20秒</option>
-                <option value="30">30秒</option>
-                <option value="35" selected>35秒</option>
-                <option value="45">45秒</option>
-                <option value="60">60秒</option>
-              </select>
-            </label>
-          </div>
+    <section id="result" class="panel hidden result-panel"><div class="eyebrow">FINAL RESULT</div><h2 id="resultTitle">ゲーム終了！</h2><div id="specialResult"></div><div id="podium" class="podium"></div><div id="finalScoreboard" class="final-scoreboard"></div><button id="restartBtn" class="btn primary hidden">同じゲームでもう一度</button></section>
 
-          <div class="howto-card">
-            <strong>ルール</strong>
-            <p>全員が同じ実写写真を見て、80文字以内でタイトルを投稿。回答者名は投票が終わるまで秘密。1票200pt、最多得票にはさらに500pt。</p>
-          </div>
-          <button id="startBtn" class="btn primary wide">3人以上でゲーム開始</button>
-        </div>
-
-        <div id="guestWaiting" class="waiting-card">
-          <div class="pulse"></div>
-          <h3>ホストを待っています...</h3>
-          <p class="muted">3人以上そろったらスタート！</p>
-        </div>
-      </div>
-    </section>
-
-    <section id="game" class="panel hidden game-panel">
-      <div class="game-top">
-        <div>
-          <div class="eyebrow"><span id="stageLabel">ROUND</span> · <span id="roundNum">1</span>/<span id="roundTotal">8</span></div>
-          <div id="progressText" class="muted small-text">準備中...</div>
-        </div>
-        <div class="timer-wrap">
-          <div id="timerText" class="timer-text">35</div>
-          <div class="timer-bar"><div id="timerBar" class="timer-fill"></div></div>
-        </div>
-      </div>
-
-      <div id="gameContent"></div>
-      <div id="gameMessage" class="game-message"></div>
-
-      <div class="score-mini">
-        <h3>スコア</h3>
-        <div id="miniScoreboard" class="mini-scoreboard"></div>
-      </div>
-    </section>
-
-    <section id="result" class="panel hidden result-panel">
-      <div class="eyebrow">FINAL RESULT</div>
-      <h2>卒業式</h2>
-      <div id="podium" class="podium"></div>
-      <div id="finalScoreboard" class="final-scoreboard"></div>
-      <button id="restartBtn" class="btn primary hidden">もう一度遊ぶ</button>
-    </section>
-
-    <section id="closed" class="panel hidden hero">
-      <h2>ルームが終了しました</h2>
-      <p id="closedMessage" class="muted">ホストが退出したため、ルームが終了しました。</p>
-      <button class="btn primary" onclick="location.href='/'">トップへ戻る</button>
-    </section>
+    <section id="closed" class="panel hidden hero-copy"><h2>ルームが終了しました</h2><p id="closedMessage" class="muted">ホストが退出しました。</p><button class="btn primary" onclick="location.href='/'">ゲーム一覧へ</button></section>
   </main>
-
   <div id="toast" class="toast"></div>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/app.js"></script>
-  <script src="/photo_patch.js"></script>
+  <script src="/socket.io/socket.io.js"></script><script src="/app.js"></script>
 </body>
 </html>
