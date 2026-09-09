@@ -1,6 +1,8 @@
 'use strict';
 // Original items. Level labels are author estimates, not official TOPIK calibration.
 const games = {
+ memory:{title:'어휘 메모리',icon:'▦',tag:'어휘',rule:'카드를 두 장씩 뒤집어 단어와 뜻의 짝 3개를 찾으세요. 다른 짝이면 다시 뒤집힙니다. 틀려도 계속 도전할 수 있어요.'},
+ search:{title:'단어 탐색',icon:'⌕',tag:'어휘',rule:'뜻을 선택하고 글자판에서 단어의 첫 글자와 끝 글자를 누르세요. 가로 또는 세로로 이어진 단어 3개를 찾으면 성공!'},
  sniper:{title:'문맥 스나이퍼',icon:'◎',tag:'문맥 판단',rule:'문맥에 맞는 표현을 조준하세요. 정확도와 연속 정답으로 점수를 쌓습니다.'},
  nuance:{title:'뉘앙스 배틀',icon:'⇄',tag:'문법',rule:'두 표현을 두 상황에 하나씩 배치하세요. 같은 표현은 두 번 쓸 수 없습니다.'},
  survival:{title:'TOPIK 생존전',icon:'⌨',tag:'어휘',rule:'뜻과 초성을 보고 단어를 직접 입력하세요. 오답·시간 초과는 HP -1. HP가 0이면 도전 종료!'},
@@ -77,4 +79,5 @@ repair(5,['조사에','참여한 사람은','열 명 밖에','없었다.'],2,'�
 repair(5,['실험을','진행한 지','삼 년이 되었다.','결과가 달라졌을 지','궁금하다.'],3,'결과가 달라졌을지','경과 시간을 나타내는 의존 명사 지는 띄고, 의문을 나타내는 어미 -을지는 붙인다.','経過の「지」は分かち書き、疑問の「-을지」は続ける。','떠난 지 / 떠났을지');
 bank.find(q=>q.id==='repair-2').accepted=['뵈어요.'];
 bank.find(q=>q.id==='repair-4').accepted=['끝났다고 해요.'];
+bank.push(...require('./korean-puzzles').items());
 module.exports={games,bank};
