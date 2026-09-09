@@ -11,6 +11,8 @@ const io = new Server(server, {
   connectionStateRecovery: { maxDisconnectionDuration: 2 * 60 * 1000, skipMiddlewares: true }
 });
 
+require('./korean-server')(io);
+
 const GAMES = {
   genshin: { title:'原神クイズ', category:'知識系', icon:'✦', min:1, max:40, rounds:[5,10,15,20], defaultRounds:10, seconds:[10,15,20,30], defaultSeconds:15 },
   values: { title:'価値観一致', category:'パーティー系', icon:'🧠', min:2, max:20, rounds:[5,8,10,12], defaultRounds:8, seconds:[15,20,30], defaultSeconds:20 },
