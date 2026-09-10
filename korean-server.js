@@ -2,9 +2,11 @@
 const crypto=require('node:crypto');
 const {games,bank}=require('./korean-data');
 const puzzles=require('./korean-puzzles');
+const detective=require('./korean-detective');
 const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=crypto.randomInt(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;};
 const normalize=s=>String(s??'').normalize('NFC').trim().replace(/\s+/g,' ').replace(/[.!?。]+$/u,'');
 function prepare(q){
+ if(q.kind==='detective')return detective.prepare(q,shuffle);
  if(puzzles.isPuzzle(q))return puzzles.prepare(q);
  const x=structuredClone(q);
  if(q.options){const indices=shuffle(q.options.map((_,i)=>i));x.options=indices.map(i=>q.options[i]);x.answer=q.kind==='nuance'?q.answer.map(a=>indices.indexOf(a)):indices.indexOf(q.answer);}
@@ -12,6 +14,7 @@ function prepare(q){
  return x;
 }
 function grade(q,a){
+ if(q.kind==='detective')return detective.grade(q,a);
  if(puzzles.isPuzzle(q))return puzzles.grade(q,a);
  if(q.kind==='sniper')return Number.isInteger(a)&&a===q.answer;
  if(q.kind==='order'||q.kind==='nuance')return Array.isArray(a)&&JSON.stringify(a)===JSON.stringify(q.answer);
@@ -21,10 +24,10 @@ function grade(q,a){
 }
 function selectBank(game,level,review=[],seen=[]){
  const ranges={1:[1,2],2:[2,3],3:[3,4],4:[4,5],5:[5]};
- let pool=bank.filter(q=>((game==='boss'&&(review.length||!puzzles.isPuzzle(q)))||q.kind===game)&&(review.length?review.includes(q.id):ranges[level].includes(q.level)));
+ let pool=bank.filter(q=>((game==='boss'&&(review.length||(!puzzles.isPuzzle(q)&&q.kind!=='detective')))||q.kind===game)&&(review.length?review.includes(q.id):ranges[level].includes(q.level)));
  const used=new Set(seen);pool=shuffle(pool);return [...pool.filter(q=>!used.has(q.id)),...pool.filter(q=>used.has(q.id))];
 }
-function solutionText(q){if(puzzles.isPuzzle(q))return puzzles.solution(q);if(q.kind==='sniper')return q.options[q.answer];if(q.kind==='nuance')return q.answer.map((n,i)=>`${i+1}: ${q.options[n]}`).join(' / ');if(q.kind==='order')return q.answer.map(n=>q.cards[n]).join(' ');if(q.kind==='repair')return `${q.parts[q.answer.index]} → ${q.answer.text}`;return q.answer;}
+function solutionText(q){if(q.kind==='detective')return detective.solution(q);if(puzzles.isPuzzle(q))return puzzles.solution(q);if(q.kind==='sniper')return q.options[q.answer];if(q.kind==='nuance')return q.answer.map((n,i)=>`${i+1}: ${q.options[n]}`).join(' / ');if(q.kind==='order')return q.answer.map(n=>q.cards[n]).join(' ');if(q.kind==='repair')return `${q.parts[q.answer.index]} → ${q.answer.text}`;return q.answer;}
 function install(io,config={}){
  const ns=io.of('/korean'),rooms=new Map(),sessions=new Map();
  const grace=config.grace??30000,reviewMs=config.reviewMs??60000;
@@ -43,7 +46,7 @@ function install(io,config={}){
  const hpGame=r.mode==='coop'||['survival','boss'].includes(r.game);
  if(hpGame&&(r.mode==='coop'?r.teamHp<=0:alive.every(p=>p.hp<=0)))return finish(r,'HP 소진 · 오답을 복습하고 다시 도전하세요.');
  r.index++;r.phase='question';r.roundKey=crypto.randomUUID();r.answers.clear();r.ready.clear();r.review=null;for(const p of r.players.values())p.puzzle=puzzles.progress();
- const q=r.items[r.index];const duration=config.questionMs??({sniper:35000,nuance:55000,survival:35000,order:65000,repair:65000,memory:120000,search:120000}[q.kind]);
+ const q=r.items[r.index];const duration=config.questionMs??({sniper:35000,nuance:55000,survival:35000,order:65000,repair:65000,memory:120000,search:120000,detective:180000}[q.kind]);
  timer(r,duration,()=>reveal(r));broadcast(r);
  }
  function advance(r){if(r.phase!=='review')return;cancel(r);next(r);}

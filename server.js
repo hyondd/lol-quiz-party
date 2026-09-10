@@ -12,6 +12,7 @@ const io = new Server(server, {
 });
 
 require('./korean-server')(io);
+require('./duo-server')(io);
 
 const GAMES = {
   genshin: { title:'原神クイズ', category:'知識系', icon:'✦', min:1, max:40, rounds:[5,10,15,20], defaultRounds:10, seconds:[10,15,20,30], defaultSeconds:15 },

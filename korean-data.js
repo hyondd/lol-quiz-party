@@ -1,6 +1,7 @@
 'use strict';
 // Original items. Level labels are author estimates, not official TOPIK calibration.
 const games = {
+ detective:{title:'독해 탐정',icon:'⌖',tag:'독해',rule:'정답 선택 → 근거 문장 2개 확보 → 오답의 함정 판별. 세 단계를 모두 맞히면 사건 해결! 사건당 3분이며 이전 단계로 돌아가 수정할 수 있습니다.'},
  memory:{title:'어휘 메모리',icon:'▦',tag:'어휘',rule:'카드를 두 장씩 뒤집어 단어와 뜻의 짝 3개를 찾으세요. 다른 짝이면 다시 뒤집힙니다. 틀려도 계속 도전할 수 있어요.'},
  search:{title:'단어 탐색',icon:'⌕',tag:'어휘',rule:'뜻을 선택하고 글자판에서 단어의 첫 글자와 끝 글자를 누르세요. 가로 또는 세로로 이어진 단어 3개를 찾으면 성공!'},
  sniper:{title:'문맥 스나이퍼',icon:'◎',tag:'문맥 판단',rule:'문맥에 맞는 표현을 조준하세요. 정확도와 연속 정답으로 점수를 쌓습니다.'},
@@ -80,4 +81,5 @@ repair(5,['실험을','진행한 지','삼 년이 되었다.','결과가 달라�
 bank.find(q=>q.id==='repair-2').accepted=['뵈어요.'];
 bank.find(q=>q.id==='repair-4').accepted=['끝났다고 해요.'];
 bank.push(...require('./korean-puzzles').items());
+bank.push(...require('./korean-detective').bank);
 module.exports={games,bank};
